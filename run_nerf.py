@@ -25,11 +25,12 @@ from data.datasets import PatchNeRFDataset
 from data.collater import Ray_Batch_Collate, Image_Batch_Collate
 from models.nerf_net import NeRFNet
 from engines.lr import LRScheduler
-from engines.trainer import train_one_epoch, save_checkpoint
+from engines.trainer import train_one_epoch, train_one_epoch_dynamic, save_checkpoint
 from engines.eval import evaluate, render_video, linear_eval
 from models.vgg import Vgg16
 from models.transformer_net import TransformerNet
 from pdb import set_trace as st
+from models.tineuvox import compute_bbox_by_cam_frustrm
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 # TODO: Train a TiNuVox Instance and then fix this, then utilze as the content-implicit module
@@ -267,18 +268,33 @@ def main(args):
             print("Error: The specified working directory does not exists!")
             return
 
+    # Create dataset
+    print("Loading nerf data:", args.data_path)
+    train_set = PatchNeRFDataset(args.data_path, subsample=args.subsample, split='train', cam_id=False,
+                            patch_size=args.patch_size, style_path=args.style_path, with_mask=args.with_mask,
+                            rand_style=args.rand_style, sphere_style=args.sphere_style, mixed_styles=args.mixed_styles, patch_stride=args.patch_stride, is_dynamic=args.is_dynamic)
+    test_set = PatchNeRFDataset(args.data_path, subsample=args.subsample, split='test', cam_id=False, is_dynamic=args.is_dynamic)
+    try:
+        exhibit_set = ExhibitNeRFDataset(args.data_path, subsample=args.subsample, is_dynamic=args.is_dynamic)
+    except FileNotFoundError:
+        exhibit_set = None
+        print("Warning: No exhibit set!")
     # Create model and optimizer
     stl_num = get_stl_num(f"{BASE_DIR}/{args.mixed_styles}")
+    xyz_min, xyz_max = None, None
+    if(args.is_dynamic):
+         xyz_min, xyz_max = compute_bbox_by_cam_frustrm(train_set.rays, *train_set.near_far())
+
     model = NeRFNet(netdepth=args.netdepth, netwidth=args.netwidth, netwidth_fine=args.netwidth_fine, netdepth_fine=args.netdepth_fine, no_skip=args.no_skip,
         act_fn=args.act_fn, N_samples=args.N_samples, N_importance=args.N_importance, viewdirs=args.use_viewdirs, use_embed=args.use_embed, multires=args.multires,
         multires_views=args.multires_views, ray_chunk=args.ray_chunk, pts_chuck=args.pts_chunk, perturb=args.perturb,
         raw_noise_std=args.raw_noise_std, fix_param=args.fix_param, zero_viewdir=args.zero_viewdir, embed_mlp=args.embed_mlp, offset_mlp=args.offset_mlp,
-        embed_posembed=args.embed_posembed, stl_num=stl_num)
+        embed_posembed=args.embed_posembed, stl_num=stl_num, is_dynamic=args.is_dynamic, xyz_min=xyz_min, xyz_max=xyz_max)
     if args.with_teach:
         teacher = NeRFNet(netdepth=args.netdepth, netwidth=args.netwidth, netwidth_fine=args.netwidth_fine, netdepth_fine=args.netdepth_fine, no_skip=args.no_skip,
             act_fn=args.act_fn, N_samples=args.N_samples, N_importance=args.N_importance, viewdirs=args.use_viewdirs, use_embed=args.use_embed, multires=args.multires,
             multires_views=args.multires_views, ray_chunk=args.ray_chunk, pts_chuck=args.pts_chunk, perturb=args.perturb,
-            raw_noise_std=args.raw_noise_std, fix_param=[True, True])
+            raw_noise_std=args.raw_noise_std, fix_param=[True, True], is_dynamic=args.is_dynamic, xyz_min=xyz_min, xyz_max=xyz_max)
     else:
         teacher = None
     VGG = Vgg16(requires_grad=False)
@@ -351,18 +367,6 @@ def main(args):
             ckpt_dict = torch.load(teach_ckpt_path, map_location="cpu")
             print(f"[Teach Model]: load from {teach_ckpt_path}")
             teacher.module.load_state_dict({k.replace('module.',''):v for k,v in ckpt_dict['model'].items()}, strict=True)
-
-    # Create dataset
-    print("Loading nerf data:", args.data_path)
-    train_set = PatchNeRFDataset(args.data_path, subsample=args.subsample, split='train', cam_id=False,
-                            patch_size=args.patch_size, style_path=args.style_path, with_mask=args.with_mask,
-                            rand_style=args.rand_style, sphere_style=args.sphere_style, mixed_styles=args.mixed_styles, patch_stride=args.patch_stride, is_dynamic=args.is_dynamic)
-    test_set = PatchNeRFDataset(args.data_path, subsample=args.subsample, split='test', cam_id=False, is_dynamic=args.is_dynamic)
-    try:
-        exhibit_set = ExhibitNeRFDataset(args.data_path, subsample=args.subsample, is_dynamic=args.is_dynamic)
-    except FileNotFoundError:
-        exhibit_set = None
-        print("Warning: No exhibit set!")
 
     ####### Training stage #######
     print(train_set[0])

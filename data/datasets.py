@@ -256,7 +256,7 @@ class PatchNeRFDataset(BaseNeRFDataset):
 class ExhibitNeRFDataset(BaseNeRFDataset):
 
     def __init__(self, root_dir, subsample=0, is_dynamic=False):
-        super().__init__(root_dir, split='exhibit', subsample=subsample, cam_id=False, rgb=False, is_dynamic=False)
+        super().__init__(root_dir, split='exhibit', subsample=subsample, cam_id=False, rgb=False, is_dynamic=is_dynamic)
 
         self.rays = torch.from_numpy(self.rays).float()
         self.rays = self.rays.permute([0, 3, 1, 2, 4]) # [N, ro+rd, H, W, 3(+id)]

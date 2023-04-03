@@ -255,7 +255,7 @@ class NeRFMLP(nn.Module):
                         stl_embed = self.act_fn(stl_embed)
                     style_feature = stl_embed.expand([end-i, stl_embed.shape[-1]])
 
-            embedded = self.embedder(inputs_flat[i:end])
+            embedded = self.embedder(inputs_flat[i:end]) # CIM output
 
             # append view direction embedding
             if self.embeddirs is not None:

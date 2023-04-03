@@ -21,11 +21,12 @@ from pdb import set_trace as st
 from utils.error import *
 
 class NeRFNet(nn.Module):
-    
+
     def __init__(self, netdepth=8, netwidth=256, netdepth_fine=8, netwidth_fine=256, no_skip=False, act_fn="relu", N_samples=64, N_importance=64,
         viewdirs=True, use_embed=True, multires=10, multires_views=4, ray_chunk=1024*32, pts_chuck=1024*64,
-        perturb=1., raw_noise_std=0., fix_param=False, zero_viewdir=False, embed_mlp=False, offset_mlp=False, embed_posembed=False, stl_num=None):
-        
+        perturb=1., raw_noise_std=0., fix_param=False, zero_viewdir=False, embed_mlp=False, offset_mlp=False, embed_posembed=False, stl_num=None,
+        is_dynamic=False, xyz_min=None, xyz_max=None):
+
         super().__init__()
         self.fix_coarse, self.fix_fine = fix_param
         # Create sampler
@@ -63,7 +64,7 @@ class NeRFNet(nn.Module):
         self.nerf_fine = self.nerf
         if N_importance > 0:
             self.nerf_fine = NeRFMLP(input_dim=3, output_dim=4, net_depth=netdepth_fine, net_width=netwidth_fine, no_skip=no_skip, act_fn=act_fn, skips=[4],
-                viewdirs=viewdirs, use_embed=use_embed, multires=multires, multires_views=multires_views, netchunk=pts_chuck, 
+                viewdirs=viewdirs, use_embed=use_embed, multires=multires, multires_views=multires_views, netchunk=pts_chuck,
                 zero_viewdir=zero_viewdir, embed_mlp=embed_mlp, offset_mlp=offset_mlp, embed_posembed=embed_posembed, stl_num=stl_num)
             if self.fix_fine == True or self.fix_fine == "True":
                 print(f"> Fix NeRF Fine")
@@ -116,7 +117,7 @@ class NeRFNet(nn.Module):
             ret['raw'] = raw
         if retpts:
             ret['pts'] = pts
-        
+
         # Secondary sampling
         N_importance = kwargs.get('N_importance', self.N_importance)
         if (self.importance_sampler is not None) and (N_importance > 0):
@@ -129,7 +130,7 @@ class NeRFNet(nn.Module):
             raw = self.nerf_fine(pts, viewdirs, stl_idx=stl_idx)
             # render raw data
             ret = self.renderer(raw, z_vals, rays_d, raw_noise_std=raw_noise_std, pytest=pytest)
-            
+
             # Buffer raw/pts
             if retraw:
                 ret['raw'] = raw
@@ -176,7 +177,7 @@ class NeRFNet(nn.Module):
         rays_d = torch.reshape(rays_d, [-1,rays_d.shape[-1]]).float()
 
         # Provide ray directions as input
-        if self.use_viewdirs: 
+        if self.use_viewdirs:
             viewdirs = rays_d
             viewdirs = viewdirs / torch.norm(viewdirs, dim=-1, keepdim=True)
             viewdirs = torch.reshape(viewdirs, [-1, viewdirs.shape[-1]]).float()
