@@ -18,3 +18,7 @@ precrop_frac = 0.5
 
 half_res = False
 is_dynamic = True
+
+num_voxels=1000000
+num_voxels_base=1000000
+num_voxel_grids=4

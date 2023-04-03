@@ -233,6 +233,12 @@ def create_arg_parser():
 
     parser.add_argument('--is_dynamic', action='store_true', default=False,
                         help='Turn on Dynamic NERF processing.  Only for Dynamic NeRF Datasets')
+    parser.add_argument('--num_voxels', type=int, default=100**3,
+                    help='Number of voxels to store.  Only for Dynamic NeRF Datasets')
+    parser.add_argument('--num_voxels_base', type=int, default=100**3,
+                        help='Rescales voxel sizes.  Only for Dynamic NeRF Datasets')
+    parser.add_argument('--num_voxel_grids', type=int, default=4,
+                        help='Number of Voxel Grids to create and update.  Only for Dynamic NeRF Datasets')
     return parser
 
 
@@ -289,12 +295,12 @@ def main(args):
         act_fn=args.act_fn, N_samples=args.N_samples, N_importance=args.N_importance, viewdirs=args.use_viewdirs, use_embed=args.use_embed, multires=args.multires,
         multires_views=args.multires_views, ray_chunk=args.ray_chunk, pts_chuck=args.pts_chunk, perturb=args.perturb,
         raw_noise_std=args.raw_noise_std, fix_param=args.fix_param, zero_viewdir=args.zero_viewdir, embed_mlp=args.embed_mlp, offset_mlp=args.offset_mlp,
-        embed_posembed=args.embed_posembed, stl_num=stl_num, is_dynamic=args.is_dynamic, xyz_min=xyz_min, xyz_max=xyz_max)
+        embed_posembed=args.embed_posembed, stl_num=stl_num, is_dynamic=args.is_dynamic, xyz_min=xyz_min, xyz_max=xyz_max, num_voxels=args.num_voxels, num_voxels_base=args.num_voxels_base, num_voxel_grids=args.num_voxel_grids)
     if args.with_teach:
         teacher = NeRFNet(netdepth=args.netdepth, netwidth=args.netwidth, netwidth_fine=args.netwidth_fine, netdepth_fine=args.netdepth_fine, no_skip=args.no_skip,
             act_fn=args.act_fn, N_samples=args.N_samples, N_importance=args.N_importance, viewdirs=args.use_viewdirs, use_embed=args.use_embed, multires=args.multires,
             multires_views=args.multires_views, ray_chunk=args.ray_chunk, pts_chuck=args.pts_chunk, perturb=args.perturb,
-            raw_noise_std=args.raw_noise_std, fix_param=[True, True], is_dynamic=args.is_dynamic, xyz_min=xyz_min, xyz_max=xyz_max)
+            raw_noise_std=args.raw_noise_std, fix_param=[True, True], is_dynamic=args.is_dynamic, xyz_min=xyz_min, xyz_max=xyz_max, num_voxels=args.num_voxels, num_voxels_base=args.num_voxels_base, num_voxel_grids=args.num_voxel_grids)
     else:
         teacher = None
     VGG = Vgg16(requires_grad=False)

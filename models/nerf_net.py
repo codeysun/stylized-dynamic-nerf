@@ -25,7 +25,7 @@ class NeRFNet(nn.Module):
     def __init__(self, netdepth=8, netwidth=256, netdepth_fine=8, netwidth_fine=256, no_skip=False, act_fn="relu", N_samples=64, N_importance=64,
         viewdirs=True, use_embed=True, multires=10, multires_views=4, ray_chunk=1024*32, pts_chuck=1024*64,
         perturb=1., raw_noise_std=0., fix_param=False, zero_viewdir=False, embed_mlp=False, offset_mlp=False, embed_posembed=False, stl_num=None,
-        is_dynamic=False, xyz_min=None, xyz_max=None):
+        is_dynamic=False, xyz_min=None, xyz_max=None, num_voxels=0, num_voxels_base=0, num_voxel_grids=0):
 
         super().__init__()
         self.fix_coarse, self.fix_fine = fix_param
@@ -85,6 +85,34 @@ class NeRFNet(nn.Module):
         # no perturbation
         self.render_kwargs_test['perturb'] = 0.
         self.render_kwargs_test['raw_noise_std'] = 0.
+
+        # TiNuVox parameters
+        self.is_dynamic = is_dynamic
+        if(is_dynamic):
+            self.register_buffer('xyz_min', torch.Tensor(xyz_min))
+            self.register_buffer('xyz_max', torch.Tensor(xyz_max))
+
+            # Computing Dimensions for Voxel Grids
+            self.num_voxels_base = num_voxels_base
+            self.voxel_size_base = ((self.xyz_max - self.xyz_min).prod() / self.num_voxels_base).pow(1/3)
+
+            self._set_tinuvox_grid_resolution(num_voxels)
+
+            self.num_voxel_grids = num_voxel_grids
+            self.voxel_features = torch.nn.Parameter(torch.zeros([1, self.num_voxel_grids, *self.world_size],dtype=torch.float32))
+
+            print('TiNeuVox: feature voxel grid', self.voxel_features.shape)
+
+    def _set_tinuvox_grid_resolution(self, num_voxels):
+        # Determine grid resolution
+        self.num_voxels = num_voxels
+        self.voxel_size = ((self.xyz_max - self.xyz_min).prod() / num_voxels).pow(1/3)
+        self.world_size = ((self.xyz_max - self.xyz_min) / self.voxel_size).long()
+        self.voxel_size_ratio = self.voxel_size / self.voxel_size_base
+        print('TiNeuVox: voxel_size      ', self.voxel_size)
+        print('TiNeuVox: world_size      ', self.world_size)
+        print('TiNeuVox: voxel_size_base ', self.voxel_size_base)
+        print('TiNeuVox: voxel_size_ratio', self.voxel_size_ratio)
 
     def render_rays(self, rays_o, rays_d, near, far, viewdirs=None, stl_idx=None, raw_noise_std=0.,
         verbose=False, retraw = False, retpts=False, pytest=False, **kwargs):
@@ -146,11 +174,12 @@ class NeRFNet(nn.Module):
 
         return ret
 
-    def forward(self, ray_batch, bound_batch, stl_idx=None, test=False, **kwargs):
+    def forward(self, ray_batch, times, bound_batch, stl_idx=None, test=False, **kwargs):
         """Render rays
         Args:
           ray_batch: array of shape [2, batch_size, 3]. Ray origin and direction for
             each example in batch.
+          times: array of shape [batch_size, 2, H, W, 3].  Time each image was taken
         Returns:
           ret_all includes the following returned values:
           rgb_map: [batch_size, 3]. Predicted RGB values for rays.

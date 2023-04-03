@@ -298,7 +298,7 @@ def train_one_epoch_dynamic(model_and_VGG_and_TransformNet, optimizer, scheduler
         _input = batch_rays.permute(0, 3, 1, 2, 4)
         ret_dict = model(_input, times, (near, far), stl_idx=_stl_idx, test=False) # no extraction
         if teacher is not None and (not args.self_distilled):
-            ret_dict_teach = teacher(_input, (near, far), test=False)
+            ret_dict_teach = teacher(_input, times, (near, far), test=False)
         optimizer.zero_grad()
 
         # print("Input:", _input.shape)
