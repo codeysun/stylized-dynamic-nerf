@@ -1,6 +1,6 @@
-expname = blender_paper_lego
+expname = blender_paper_lego_dynamic
 basedir = ./logs
-datadir = ./datasets/nerf_synthetic/lego
+datadir = ./datasets/dnerf_synthetic/lego
 dataset_type = blender
 
 no_batching = True
@@ -17,3 +17,4 @@ precrop_iters = 500
 precrop_frac = 0.5
 
 half_res = False
+is_dynamic = True

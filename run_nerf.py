@@ -32,6 +32,8 @@ from models.transformer_net import TransformerNet
 from pdb import set_trace as st
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
+# TODO: Train a TiNuVox Instance and then fix this, then utilze as the content-implicit module
+
 '''How to use:
 python run_nerf.py --action train --gpuid 1  --batch_size=1   --config configs/fern.txt  --N_iters 250000  \
     --expname stylenerf  --ckpt_path logs/fern/checkpoints/00200000.ckpt  --data_path datasets/nerf_llff_data/fern_stylenerf
@@ -227,6 +229,9 @@ def create_arg_parser():
                         help='only update rgb branch')
     parser.add_argument("--scale_ps_step", type=int, default=-1,
                         help='scale ps by 1/2 using given steps')
+
+    parser.add_argument('--is_dynamic', action='store_true', default=False,
+                        help='Turn on Dynamic NERF processing.  Only for Dynamic NeRF Datasets')
     return parser
 
 
@@ -351,15 +356,17 @@ def main(args):
     print("Loading nerf data:", args.data_path)
     train_set = PatchNeRFDataset(args.data_path, subsample=args.subsample, split='train', cam_id=False,
                             patch_size=args.patch_size, style_path=args.style_path, with_mask=args.with_mask,
-                            rand_style=args.rand_style, sphere_style=args.sphere_style, mixed_styles=args.mixed_styles, patch_stride=args.patch_stride)
-    test_set = PatchNeRFDataset(args.data_path, subsample=args.subsample, split='test', cam_id=False)
+                            rand_style=args.rand_style, sphere_style=args.sphere_style, mixed_styles=args.mixed_styles, patch_stride=args.patch_stride, is_dynamic=args.is_dynamic)
+    test_set = PatchNeRFDataset(args.data_path, subsample=args.subsample, split='test', cam_id=False, is_dynamic=args.is_dynamic)
     try:
-        exhibit_set = ExhibitNeRFDataset(args.data_path, subsample=args.subsample)
+        exhibit_set = ExhibitNeRFDataset(args.data_path, subsample=args.subsample, is_dynamic=args.is_dynamic)
     except FileNotFoundError:
         exhibit_set = None
         print("Warning: No exhibit set!")
 
     ####### Training stage #######
+    print(train_set[0])
+
     if not args.eval:
         train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size, shuffle=True, drop_last=True,
             collate_fn=Ray_Batch_Collate(), num_workers=args.num_workers, pin_memory=args.pin_mem)
@@ -367,11 +374,18 @@ def main(args):
         # Summary writers
         summary_writer = SummaryWriter(log_dir=log_dir)
         while global_step < args.N_iters:
-            global_step = train_one_epoch([model, teacher, VGG, transformer], optimizer, scheduler,
-                train_loader, test_set, exhibit_set, summary_writer,
-                global_step, args.N_iters, run_dir, device=device,
-                i_print=args.i_print, i_img=args.i_img, log_img_idx=args.log_img_idx,
-                i_weights=args.i_weights, i_testset=args.i_testset, i_video=args.i_video, args=args)
+            if(args.is_dynamic):
+                global_step = train_one_epoch_dynamic([model, teacher, VGG, transformer], optimizer, scheduler,
+                    train_loader, test_set, exhibit_set, summary_writer,
+                    global_step, args.N_iters, run_dir, device=device,
+                    i_print=args.i_print, i_img=args.i_img, log_img_idx=args.log_img_idx,
+                    i_weights=args.i_weights, i_testset=args.i_testset, i_video=args.i_video, args=args)
+            else:
+                global_step = train_one_epoch([model, teacher, VGG, transformer], optimizer, scheduler,
+                    train_loader, test_set, exhibit_set, summary_writer,
+                    global_step, args.N_iters, run_dir, device=device,
+                    i_print=args.i_print, i_img=args.i_img, log_img_idx=args.log_img_idx,
+                    i_weights=args.i_weights, i_testset=args.i_testset, i_video=args.i_video, args=args)
             if global_step % args.i_weights:
                 save_checkpoint(os.path.join(ckpt_dir, 'latest.ckpt'), global_step, model, optimizer)
 

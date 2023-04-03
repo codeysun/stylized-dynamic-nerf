@@ -21,7 +21,7 @@ from utils.ray import get_persp_rays, get_persp_intrinsic
 from data.load_llff import load_llff_data
 from data.load_deepvoxels import load_dv_data
 from data.load_LINEMOD import load_LINEMOD_data
-from data.load_blender import load_blender_data
+from data.load_blender import load_blender_data, load_blender_data_dynamic
 
 import configargparse
 from pdb import set_trace as st
@@ -29,6 +29,7 @@ from pdb import set_trace as st
 def create_arg_parser():
     parser = configargparse.ArgumentParser()
     parser.add_argument('--config', is_config_file=True, help='Path to config file')
+    parser.add_argument('--is_dynamic', type=bool, action='store_true', help='Turn on Dynamic NERF processing.  Only for Dynamic NeRF Datasets')
     parser.add_argument('--data_type', '--dataset_type', type=str, required=True, help='Dataset type',
         choices=['llff', 'blender', 'LINEMOD', 'deepvoxels'])
     parser.add_argument('--data_path', '--datadir', type=str, required=True, help='Path to dataset directory')
@@ -49,11 +50,11 @@ def create_arg_parser():
         help='Load half-resolution (400x400) images instead of full resolution (800x800). Only for blender dataset.')
     parser.add_argument('--white_bkgd', action='store_true', default=False,
         help='Render synthetic data on white background. Only for blender/LINEMOD dataset')
-    parser.add_argument('--test_skip', type=int, default=0, 
+    parser.add_argument('--test_skip', type=int, default=0,
         help='will load 1/N images from test/val sets. Only for large datasets like blender/LINEMOD/deepvoxels.')
 
     ## flags for deepvoxels
-    parser.add_argument('--dv_scene', type=str, default='greek', 
+    parser.add_argument('--dv_scene', type=str, default='greek',
         help='Shape of deepvoxels scene. Only for deepvoxels dataset', choices=['armchair', 'cube', 'greek', 'vase'])
 
     parser.add_argument('--with_mask', action='store_true', default=False)
@@ -89,8 +90,13 @@ def generate_dataset(args, output_path):
         print('NEAR FAR', near, far)
 
     elif args.data_type == 'blender':
-        images, poses, render_poses, hwf, i_split = load_blender_data(args.data_path, args.half_res, args.test_skip)
-        print('Loaded blender', images.shape, render_poses.shape, hwf, args.data_path)
+        if(args.is_dynamic):
+            images, poses, times, render_poses, render_times, hwf, i_split = load_blender_data_dynamic(args.data_path, args.half_res, args.test_skip)
+            print('Loaded blender', images.shape, render_poses.shape, times.shape, hwf, args.data_path)
+        else:
+            images, poses, render_poses, hwf, i_split = load_blender_data(args.data_path, args.half_res, args.test_skip)
+            print('Loaded blender', images.shape, render_poses.shape, hwf, args.data_path)
+
         i_train, i_val, i_test = i_split
 
         near = 2.
@@ -137,13 +143,25 @@ def generate_dataset(args, output_path):
 
     print('Calculating train/valid/test rays ...')
     rays = torch.stack([get_persp_rays(H, W, K, torch.tensor(p)) for p in tqdm(poses[:,:3,:4])], 0) # [N, ro+rd, H, W, 3]
+    if args.is_dynamic:
+        times = torch.ones_like(rays) * times[:, None, None, None, None]
+        times = times.numpy().astype(np.float32)
+
     rays = rays.permute([0, 2, 3, 1, 4]).numpy().astype(np.float32) # [N, H, W, ro+rd, 3]
-    print('Done.', rays.shape)
+
+    if(args.is_dynamic):
+        print('Done.', rays.shape, times.shape)
+    else:
+        print('Done.', rays.shape)
+
 
     print('Splitting train/valid/test rays ...')
     rays_train, rgbs_train, masks_train = rays[i_train], images[i_train], mask[i_train]
     rays_val, rgbs_val, masks_val = rays[i_val], images[i_val], mask[i_val]
     rays_test, rgbs_test, masks_test = rays[i_test], images[i_test], mask[i_test]
+    if(args.is_dynamic):
+        times_train, times_val, times_test = times[i_train], times[i_val], times[i_test]
+
     '''
     save tmp poses
     pos = [np.concatenate([x, np.array([[0,0,0,1]])], 0) for x in poses]
@@ -157,11 +175,19 @@ def generate_dataset(args, output_path):
     json.dump(data_dict, f, indent=4)
     f.close()
     '''
-    
+
     print('Calculating exhibition rays ...')
     rays_exhibit = torch.stack([get_persp_rays(H, W, K, torch.tensor(p)) for p in tqdm(render_poses[:,:3,:4])], 0) # [N, ro+rd, H, W, 3]
+    if args.is_dynamic:
+        times_exhibit = torch.ones_like(rays_exhibit) * render_times[:, None, None, None, None]
+        times_exhibit = times_exhibit.numpy().astype(np.float32)
+
     rays_exhibit = rays_exhibit.permute([0, 2, 3, 1, 4]).numpy().astype(np.float32) # [N, H, W, ro+rd, 3]
-    print('Done.', rays_exhibit.shape)
+
+    if(args.is_dynamic):
+        print('Done.', rays_exhibit.shape, times_exhibit.shape)
+    else:
+        print('Done.', rays_exhibit.shape)
 
     print('Training set:', rays_train.shape, rgbs_train.shape)
     print('Validation set:', rays_val.shape, rgbs_val.shape)
@@ -183,6 +209,13 @@ def generate_dataset(args, output_path):
 
     np.save(os.path.join(output_path, 'rays_exhibit.npy'), rays_exhibit)
 
+    if(args.is_dynamic):
+        np.save(os.path.join(output_path, 'times_train.npy'), times_train)
+        np.save(os.path.join(output_path, 'times_val.npy'), times_val)
+        np.save(os.path.join(output_path, 'times_test.npy'), times_test)
+        np.save(os.path.join(output_path, 'times_exhibit.npy'), times_exhibit)
+
+
     # Save meta data
     meta_dict = {
         'H': H, 'W': W, 'focal': float(focal),
@@ -194,7 +227,8 @@ def generate_dataset(args, output_path):
         'spherify': args.spherify, 'llffhold': args.llffhold,
 
         'half_res': args.half_res, 'white_bkgd': args.white_bkgd,
-        'test_skip': args.test_skip, 'dv_scene': args.dv_scene
+        'test_skip': args.test_skip, 'dv_scene': args.dv_scene,
+        'is_dynamic': args.is_dynamic
     }
     print("Meta data:", meta_dict)
     with open(os.path.join(output_path, 'meta.json'), 'w') as f:

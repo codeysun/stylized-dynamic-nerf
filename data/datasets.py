@@ -9,7 +9,7 @@ from pdb import set_trace as st
 
 class BaseNeRFDataset(torch.utils.data.Dataset):
 
-    def __init__(self, root_dir, split='train', subsample=0, cam_id=False, rgb=True, with_mask=False):
+    def __init__(self, root_dir, split='train', subsample=0, cam_id=False, rgb=True, with_mask=False, is_dynamic=False):
 
         super().__init__()
 
@@ -70,6 +70,10 @@ class BaseNeRFDataset(torch.utils.data.Dataset):
 
             self.rays = np.concatenate([self.rays, ids], -1) # [N, H, W, ro+rd, 3+id]
 
+        self.is_dynamic = is_dynamic
+        if(is_dynamic):
+            times_name = "times_" + split + ".npy"
+            self.times = np.load(os.path.join(root_dir, times_name))
         # Basic attributes
         self.height = self.rays.shape[1]
         self.width = self.rays.shape[2]
@@ -120,9 +124,9 @@ class BatchNeRFDataset(BaseNeRFDataset):
 class PatchNeRFDataset(BaseNeRFDataset):
 
     def __init__(self, root_dir, split='train', subsample=0, cam_id=False, patch_size=48, style_path=None, with_mask=False,
-    rand_style=False, sphere_style=None, mixed_styles=None, patch_stride=1):
+    rand_style=False, sphere_style=None, mixed_styles=None, patch_stride=1,is_dynamic=False):
 
-        super().__init__(root_dir, split=split, subsample=subsample, cam_id=cam_id, rgb=True, with_mask=with_mask)
+        super().__init__(root_dir, split=split, subsample=subsample, cam_id=cam_id, rgb=True, with_mask=with_mask, is_dynamic=is_dynamic)
 
         self.sphere_style = sphere_style
         self.crop_size = patch_size
@@ -229,18 +233,30 @@ class PatchNeRFDataset(BaseNeRFDataset):
                         stls = self.img_style
                 if break_flag:
                     break
-            return dict(rays = rays, target_s = rgbs, style=stls, masks=masks, idx=idx, stl_idx=stl_idx) # [3,]
+            if(self.is_dynamic):
+                times = self.times[idx]
+                return dict(rays = rays, target_s = rgbs, style=stls, masks=masks, idx=idx, stl_idx=stl_idx, times=times) # [3,]
+            else:
+                return dict(rays = rays, target_s = rgbs, style=stls, masks=masks, idx=idx, stl_idx=stl_idx) # [3,]
         else:
             if self.with_mask:
-                return dict(rays = self.rays[i], target_s = self.rgbs[i], mask = self.masks[i]) # [ro+rd, H, W, 3]
+                if(self.is_dynamic):
+                    times = self.times[idx]
+                    return dict(rays = self.rays[i], target_s = self.rgbs[i], mask = self.masks[i], times=times) # [ro+rd, H, W, 3]
+                else:
+                    return dict(rays = self.rays[i], target_s = self.rgbs[i], mask = self.masks[i]) # [ro+rd, H, W, 3]
             else:
-                return dict(rays = self.rays[i], target_s = self.rgbs[i]) # [ro+rd, H, W, 3]
+                if(self.is_dynamic):
+                    times = self.times[idx]
+                    return dict(rays = self.rays[i], target_s = self.rgbs[i], times=times) # [ro+rd, H, W, 3]
+                else:
+                    return dict(rays = self.rays[i], target_s = self.rgbs[i]) # [ro+rd, H, W, 3]
 
 # Containing only rays for rendering, no rgb groundtruth
 class ExhibitNeRFDataset(BaseNeRFDataset):
 
-    def __init__(self, root_dir, subsample=0):
-        super().__init__(root_dir, split='exhibit', subsample=subsample, cam_id=False, rgb=False)
+    def __init__(self, root_dir, subsample=0, is_dynamic=False):
+        super().__init__(root_dir, split='exhibit', subsample=subsample, cam_id=False, rgb=False, is_dynamic=False)
 
         self.rays = torch.from_numpy(self.rays).float()
         self.rays = self.rays.permute([0, 3, 1, 2, 4]) # [N, ro+rd, H, W, 3(+id)]
@@ -252,7 +268,10 @@ class ExhibitNeRFDataset(BaseNeRFDataset):
         return self.rays.shape[0]
 
     def __getitem__(self, i):
-        return dict(rays = self.rays[i]) # [H, W, 3]
+        if(self.is_dynamic):
+            return dict(rays=self.rays[i], times=self.times[i])
+        else:
+            return dict(rays=self.rays[i]) # [H, W, 3]
 
 # def load_dataset(dataset_path, subsample=0, cam_id=False, device=torch.device("cpu")):
 

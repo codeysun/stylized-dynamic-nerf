@@ -16,11 +16,11 @@ from utils.error import *
 from pdb import set_trace as st
 
 class MLP(nn.Module):
-    def __init__(self, D=8, W=256, input_ch=3, input_ch_views=3, output_ch=4, no_skip=False, skips=[4], use_viewdirs=False, 
+    def __init__(self, D=8, W=256, input_ch=3, input_ch_views=3, output_ch=4, no_skip=False, skips=[4], use_viewdirs=False,
                 act_fn="relu", zero_viewdir=False, embed_mlp=False):
         """
         MLP backbone for NeRF
-        """ 
+        """
         super().__init__()
         self.D = D
         self.W = W
@@ -124,13 +124,13 @@ class MLP(nn.Module):
 
     def load_weights_from_keras(self, weights):
         assert self.use_viewdirs, "Not implemented if use_viewdirs=False"
-        
+
         # Load pts_linears
         for i in range(self.D):
             idx_pts_linears = 2 * i
-            self.pts_linears[i].weight.data = torch.from_numpy(np.transpose(weights[idx_pts_linears]))    
+            self.pts_linears[i].weight.data = torch.from_numpy(np.transpose(weights[idx_pts_linears]))
             self.pts_linears[i].bias.data = torch.from_numpy(np.transpose(weights[idx_pts_linears+1]))
-        
+
         # Load feature_linear
         idx_feature_linear = 2 * self.D
         self.feature_linear.weight.data = torch.from_numpy(np.transpose(weights[idx_feature_linear]))
@@ -151,11 +151,15 @@ class MLP(nn.Module):
         self.alpha_linear.weight.data = torch.from_numpy(np.transpose(weights[idx_alpha_linear]))
         self.alpha_linear.bias.data = torch.from_numpy(np.transpose(weights[idx_alpha_linear+1]))
 
+# TODO: Add Class for Voxel Sampling, make sure classes matches
+
 # Point query with embedding
+# TODO: Modify this to take in the extra voxel inputs + Add a time embedding + representation
+# New Input: (x, y, z) + time_information + voxel information concatenated, but can just compute most of this in here
 class NeRFMLP(nn.Module):
-    
+
     def __init__(self, input_dim=3, output_dim=4, net_depth=8, net_width=256, no_skip=False, act_fn="relu", skips=[4],
-        viewdirs=True, use_embed=True, multires=10, multires_views=4, netchunk=1024*64, fix_weight=False, 
+        viewdirs=True, use_embed=True, multires=10, multires_views=4, netchunk=1024*64, fix_weight=False,
         zero_viewdir=False, embed_mlp=False, offset_mlp=False, embed_posembed=False, stl_num=None):
 
         super().__init__()
@@ -186,7 +190,7 @@ class NeRFMLP(nn.Module):
         output_ch = output_dim
         self.mlp = MLP(net_depth, net_width, no_skip=no_skip, act_fn=act_fn, skips=skips, input_ch=input_ch,
             output_ch=output_ch, input_ch_views=input_ch_views, use_viewdirs=viewdirs, zero_viewdir=zero_viewdir, embed_mlp=self.embed_mlp)
-        
+
         if self.embed_mlp:
             self.embed_depth = 4
             self.embed_dim = stl_num
@@ -227,10 +231,10 @@ class NeRFMLP(nn.Module):
             end = min(i+self.chunk, inputs_flat.shape[0])
             embedded = self.embedder(inputs_flat[i:end])
             style_feature = None
-            
-            # Style Implicit Module, to learn the conditional style embedding 
+
+            # Style Implicit Module, to learn the conditional style embedding
             if self.embed_mlp:
-                # add the position embedding to learned conditional style feature 
+                # add the position embedding to learned conditional style feature
                 if self.embed_posembed:
                     _stl_idx = stl_idx.expand(end-i, stl_idx.shape[-1])
                     for ii, l in enumerate(self.embed_net):
