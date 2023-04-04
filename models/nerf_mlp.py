@@ -15,9 +15,46 @@ from models.embedder import Embedder
 from utils.error import *
 from pdb import set_trace as st
 
+class Deformation(nn.Module):
+    def __init__(self, D=8, W=256, input_ch=27, input_ch_views=3, input_ch_time=9, skips=[],):
+        super(Deformation, self).__init__()
+        self.D = D
+        self.W = W
+        self.input_ch = input_ch
+        self.input_ch_views = input_ch_views
+        self.input_ch_time = input_ch_time
+        self.skips = skips
+        self._time, self._time_out = self.create_net()
+
+    def create_net(self):
+        layers = [nn.Linear(self.input_ch + self.input_ch_time, self.W)]
+        for i in range(self.D - 2):
+            layer = nn.Linear
+            in_channels = self.W
+            if i in self.skips:
+                in_channels += self.input_ch
+            layers += [layer(in_channels, self.W)]
+        return nn.ModuleList(layers), nn.Linear(self.W, 3)
+
+    def query_time(self, new_pts, t, net, net_final):
+        h = torch.cat([new_pts, t], dim=-1)
+        for i, l in enumerate(net):
+            h = net[i](h)
+            h = F.relu(h)
+            if i in self.skips:
+                h = torch.cat([new_pts, h], -1)
+        return net_final(h)
+
+    def forward(self, input_pts, ts):
+        dx = self.query_time(input_pts, ts, self._time, self._time_out)
+        input_pts_orig = input_pts[:, :3]
+        out=input_pts_orig + dx
+        return out
+
 class MLP(nn.Module):
     def __init__(self, D=8, W=256, input_ch=3, input_ch_views=3, output_ch=4, no_skip=False, skips=[4], use_viewdirs=False,
-                act_fn="relu", zero_viewdir=False, embed_mlp=False):
+                act_fn="relu", zero_viewdir=False, embed_mlp=False,
+                ):
         """
         MLP backbone for NeRF
         """
@@ -74,6 +111,7 @@ class MLP(nn.Module):
     def forward(self, x, style_feature=None):
         input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
         h = input_pts
+        # featurenet in tineuvox TODO: change input to include times, pts, and voxel_features
         for i, l in enumerate(self.pts_linears):
             h = self.pts_linears[i](h)
             h = self.act_fn(h)
@@ -81,9 +119,9 @@ class MLP(nn.Module):
                 if i in self.skips:
                     h = torch.cat([input_pts, h], -1)
         if self.use_viewdirs:
-            alpha = self.alpha_linear(h)
+            alpha = self.alpha_linear(h) # densitynet in tineuvox
 
-            feature = self.feature_linear(h)
+            feature = self.feature_linear(h) # CIM
 
             # Disable view direction for AM
             if self.zero_viewdir:
@@ -115,7 +153,7 @@ class MLP(nn.Module):
                 h = self.views_linears[i](h)
                 h = self.act_fn(h)
 
-            rgb = self.rgb_linear(h)
+            rgb = self.rgb_linear(h) # rgbnet in tineuvox
             outputs = torch.cat([rgb, alpha], -1)
         else:
             outputs = self.output_linear(h)
@@ -155,12 +193,16 @@ class MLP(nn.Module):
 
 # Point query with embedding
 # TODO: Modify this to take in the extra voxel inputs + Add a time embedding + representation
+# TODO: Add time and grid embedding
+# TODO: Add timenet and deformationnet
 # New Input: (x, y, z) + time_information + voxel information concatenated, but can just compute most of this in here
 class NeRFMLP(nn.Module):
 
     def __init__(self, input_dim=3, output_dim=4, net_depth=8, net_width=256, no_skip=False, act_fn="relu", skips=[4],
-        viewdirs=True, use_embed=True, multires=10, multires_views=4, netchunk=1024*64, fix_weight=False,
-        zero_viewdir=False, embed_mlp=False, offset_mlp=False, embed_posembed=False, stl_num=None):
+        viewdirs=True, use_embed=True, multires=10, multires_views=4, multires_times=8, multires_grid=2, netchunk=1024*64, fix_weight=False,
+        zero_viewdir=False, embed_mlp=False, offset_mlp=False, embed_posembed=False, stl_num=None,
+        is_dynamic=False, xyz_min=None, xyz_max=None, num_voxels=0, num_voxels_base=0, num_voxel_grids=0,
+        multires_times=0, multires_grid=0, voxel_dim=, deformation_depth=0):
 
         super().__init__()
 
@@ -187,6 +229,49 @@ class NeRFMLP(nn.Module):
             self.embeddirs = Embedder(input_dim, multires_views, multires_views-1, periodic_fns, log_sampling=True, include_input=True)
             input_ch_views = self.embeddirs.out_dim
 
+        # TiNuVox parameters
+        self.is_dynamic = is_dynamic
+        if(is_dynamic):
+            # World Bonding Box
+            self.register_buffer('xyz_min', torch.Tensor(xyz_min))
+            self.register_buffer('xyz_max', torch.Tensor(xyz_max))
+
+            # Computing Dimensions for Voxel Grids
+            self.num_voxels_base = num_voxels_base
+            self.voxel_size_base = ((self.xyz_max - self.xyz_min).prod() / self.num_voxels_base).pow(1/3)
+
+            self._set_tinuvox_grid_resolution(num_voxels)
+
+            self.num_voxel_grids = num_voxel_grids
+            self.voxel_features = torch.nn.Parameter(torch.zeros([1, self.num_voxel_grids, *self.world_size],dtype=torch.float32))
+
+            print('TiNeuVox: feature voxel grid', self.voxel_features.shape)
+
+            # Time Embedder
+            self.time_embedder = Embedder(1, multires_times, multires_times-1, periodic_fns,log_sampling=True, include_input=True)
+            input_ch_times = self.time_embedder.out_dim
+
+            # Grid Embedder
+            # TODO: what is input_dim of voxel features?
+            self.grid_embedder = Embedder(?, multires_grid, multires_grid-1, periodic_fns, log_sampling=True, include_input=True)
+            input_ch_grid = self.grid_embedder.out_dim
+
+            # Time Net
+            timenet_width = net_width
+            timenet_depth = 1
+            timenet_output = num_voxel_grids+num_voxel_grids*2*multires_grid
+            self.timenet = nn.Sequential(
+            nn.Linear(times_ch, timenet_width), nn.ReLU(inplace=True),
+            nn.Linear(timenet_width, timenet_output))
+
+            # Deformation Net
+            self.deformationnet = Deformation(
+                W = net_width,
+                D = deformation_depth,
+                input_ch = 3 + 3 * multires * 2,
+                input_ch_times = timenet_output
+            )
+
         output_ch = output_dim
         self.mlp = MLP(net_depth, net_width, no_skip=no_skip, act_fn=act_fn, skips=skips, input_ch=input_ch,
             output_ch=output_ch, input_ch_views=input_ch_views, use_viewdirs=viewdirs, zero_viewdir=zero_viewdir, embed_mlp=self.embed_mlp)
@@ -202,6 +287,65 @@ class NeRFMLP(nn.Module):
                 self.embed_net = nn.ModuleList(
                     [nn.Linear(self.embed_dim, W)] + [nn.Linear(W, W) for i in range(self.embed_depth-1)])
             self.act_fn = nn.ReLU()
+
+
+
+    def _set_tinuvox_grid_resolution(self, num_voxels):
+        # Determine grid resolution
+        self.num_voxels = num_voxels
+        self.voxel_size = ((self.xyz_max - self.xyz_min).prod() / num_voxels).pow(1/3)
+        self.world_size = ((self.xyz_max - self.xyz_min) / self.voxel_size).long()
+        self.voxel_size_ratio = self.voxel_size / self.voxel_size_base
+        print('TiNeuVox: voxel_size      ', self.voxel_size)
+        print('TiNeuVox: world_size      ', self.world_size)
+        print('TiNeuVox: voxel_size_base ', self.voxel_size_base)
+        print('TiNeuVox: voxel_size_ratio', self.voxel_size_ratio)
+
+    def grid_sampler(self, xyz, *grids, mode=None, align_corners=True):
+        '''Wrapper for the interp operation'''
+        mode = 'bilinear'
+        shape = xyz.shape[:-1]
+        xyz = xyz.reshape(1,1,1,-1,3)
+        ind_norm = ((xyz - self.xyz_min) / (self.xyz_max - self.xyz_min)).flip((-1,)) * 2 - 1
+        ret_lst = [
+            F.grid_sample(grid, ind_norm, mode=mode, align_corners=align_corners).reshape(grid.shape[1],-1).T.reshape(*shape,grid.shape[1])
+            for grid in grids
+        ]
+        for i in range(len(grids)):
+            if ret_lst[i].shape[-1] == 1:
+                ret_lst[i] = ret_lst[i].squeeze(-1)
+        if len(ret_lst) == 1:
+            return ret_lst[0]
+        return ret_lst
+
+
+    def mult_dist_interp(self, ray_pts_delta):
+
+        x_pad = math.ceil((self.feature.shape[2]-1)/4.0)*4-self.feature.shape[2]+1
+        y_pad = math.ceil((self.feature.shape[3]-1)/4.0)*4-self.feature.shape[3]+1
+        z_pad = math.ceil((self.feature.shape[4]-1)/4.0)*4-self.feature.shape[4]+1
+        grid = F.pad(self.feature.float(),(0,z_pad,0,y_pad,0,x_pad))
+        # three
+        vox_l = self.grid_sampler(ray_pts_delta, grid)
+        vox_m = self.grid_sampler(ray_pts_delta, grid[:,:,::2,::2,::2])
+        vox_s = self.grid_sampler(ray_pts_delta, grid[:,:,::4,::4,::4])
+        vox_feature = torch.cat((vox_l,vox_m,vox_s),-1)
+
+        if len(vox_feature.shape)==1:
+            vox_feature_flatten = vox_feature.unsqueeze(0)
+        else:
+            vox_feature_flatten = vox_feature
+
+        return vox_feature_flatten
+
+    @torch.no_grad()
+    def scale_volume_grid(self, num_voxels):
+        print('TiNeuVox: scale_volume_grid start')
+        ori_world_size = self.world_size
+        self._set_grid_resolution(num_voxels)
+        print('TiNeuVox: scale_volume_grid scale world_size from', ori_world_size, 'to', self.world_size)
+        self.feature = torch.nn.Parameter(
+            F.interpolate(self.feature.data, size=tuple(self.world_size), mode='trilinear', align_corners=True))
 
     def batchify(self, inputs):
         """Single forward feed that applies to smaller batches.
@@ -261,6 +405,10 @@ class NeRFMLP(nn.Module):
             if self.embeddirs is not None:
                 embedded_dirs = self.embeddirs(input_dirs_flat[i:end])
                 embedded = torch.cat([embedded, embedded_dirs], -1)
+
+            # Compute Time Embedding
+            # Compute Deformation + Voxel Grid Sample
+            # Append to embedded
             h = self.mlp(embedded, style_feature=style_feature) # [N_chunk, C]
             output_chunks.append(h)
         outputs_flat = torch.cat(output_chunks, 0) # [N_pts, C]

@@ -239,6 +239,15 @@ def create_arg_parser():
                         help='Rescales voxel sizes.  Only for Dynamic NeRF Datasets')
     parser.add_argument('--num_voxel_grids', type=int, default=4,
                         help='Number of Voxel Grids to create and update.  Only for Dynamic NeRF Datasets')
+    parser.add_argument('--pg_scale', type=int, action="store", default=[], nargs = "*",
+                        help='Progress Scaling for TiNuVox to reduce train time.  Only for Dynamic NeRF Datasets')
+    parser.add_argument('--multires_times', type=int, default=8,
+                        help='Output dimension of the time embedding.  Only for Dynamic NeRF Datasets')
+    parser.add_argument('--multires_grid', type=int, default=2,
+                        help='Output dimension of the voxel multi-interpolated embedding.  Only for Dynamic NeRF Datasets')
+    parser.add_argument('--deformation_depth', type=int, default=3,
+                        help='Depth of the deformation network.  Only for Dynamic NeRF Datasets')
+
     return parser
 
 
@@ -288,19 +297,26 @@ def main(args):
     # Create model and optimizer
     stl_num = get_stl_num(f"{BASE_DIR}/{args.mixed_styles}")
     xyz_min, xyz_max = None, None
+    num_voxels = 0
     if(args.is_dynamic):
-         xyz_min, xyz_max = compute_bbox_by_cam_frustrm(train_set.rays, *train_set.near_far())
+        xyz_min, xyz_max = compute_bbox_by_cam_frustrm(train_set.rays, *train_set.near_far())
+        if(args.pg_scale):
+            num_voxels = args.num_voxels // (2 ** len(args.pg_scale))
+        else:
+            num_voxels = args.num_voxels
 
     model = NeRFNet(netdepth=args.netdepth, netwidth=args.netwidth, netwidth_fine=args.netwidth_fine, netdepth_fine=args.netdepth_fine, no_skip=args.no_skip,
         act_fn=args.act_fn, N_samples=args.N_samples, N_importance=args.N_importance, viewdirs=args.use_viewdirs, use_embed=args.use_embed, multires=args.multires,
         multires_views=args.multires_views, ray_chunk=args.ray_chunk, pts_chuck=args.pts_chunk, perturb=args.perturb,
         raw_noise_std=args.raw_noise_std, fix_param=args.fix_param, zero_viewdir=args.zero_viewdir, embed_mlp=args.embed_mlp, offset_mlp=args.offset_mlp,
-        embed_posembed=args.embed_posembed, stl_num=stl_num, is_dynamic=args.is_dynamic, xyz_min=xyz_min, xyz_max=xyz_max, num_voxels=args.num_voxels, num_voxels_base=args.num_voxels_base, num_voxel_grids=args.num_voxel_grids)
+        embed_posembed=args.embed_posembed, stl_num=stl_num, is_dynamic=args.is_dynamic, xyz_min=xyz_min, xyz_max=xyz_max, num_voxels=num_voxels, num_voxels_base=args.num_voxels_base, num_voxel_grids=args.num_voxel_grids,
+        multires_times=args.multires_times, multires_grid=args.multires_grid, deformation_depth=args.deformation_depth)
     if args.with_teach:
         teacher = NeRFNet(netdepth=args.netdepth, netwidth=args.netwidth, netwidth_fine=args.netwidth_fine, netdepth_fine=args.netdepth_fine, no_skip=args.no_skip,
             act_fn=args.act_fn, N_samples=args.N_samples, N_importance=args.N_importance, viewdirs=args.use_viewdirs, use_embed=args.use_embed, multires=args.multires,
             multires_views=args.multires_views, ray_chunk=args.ray_chunk, pts_chuck=args.pts_chunk, perturb=args.perturb,
-            raw_noise_std=args.raw_noise_std, fix_param=[True, True], is_dynamic=args.is_dynamic, xyz_min=xyz_min, xyz_max=xyz_max, num_voxels=args.num_voxels, num_voxels_base=args.num_voxels_base, num_voxel_grids=args.num_voxel_grids)
+            raw_noise_std=args.raw_noise_std, fix_param=[True, True], is_dynamic=args.is_dynamic, xyz_min=xyz_min, xyz_max=xyz_max, num_voxels=num_voxels, num_voxels_base=args.num_voxels_base, num_voxel_grids=args.num_voxel_grids,
+            multires_times=args.multires_times, multires_grid=args.multires_grid, deformation_depth=args.deformation_depth)
     else:
         teacher = None
     VGG = Vgg16(requires_grad=False)

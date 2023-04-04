@@ -16,9 +16,10 @@ N_rand = 1024
 precrop_iters = 500
 precrop_frac = 0.5
 
-half_res = False
+half_res = True
 is_dynamic = True
 
 num_voxels=1000000
 num_voxels_base=1000000
 num_voxel_grids=4
+pg_scale=[2000, 4000, 6000]

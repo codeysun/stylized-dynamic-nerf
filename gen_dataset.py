@@ -29,7 +29,7 @@ from pdb import set_trace as st
 def create_arg_parser():
     parser = configargparse.ArgumentParser()
     parser.add_argument('--config', is_config_file=True, help='Path to config file')
-    parser.add_argument('--is_dynamic', type=bool, action='store_true', help='Turn on Dynamic NERF processing.  Only for Dynamic NeRF Datasets')
+    parser.add_argument('--is_dynamic', action='store_true', default=False, help='Turn on Dynamic NERF processing.  Only for Dynamic NeRF Datasets')
     parser.add_argument('--data_type', '--dataset_type', type=str, required=True, help='Dataset type',
         choices=['llff', 'blender', 'LINEMOD', 'deepvoxels'])
     parser.add_argument('--data_path', '--datadir', type=str, required=True, help='Path to dataset directory')
