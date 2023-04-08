@@ -138,6 +138,9 @@ class PatchNeRFDataset(BaseNeRFDataset):
         # Cast to tensors
         self.rays = torch.from_numpy(self.rays).float()
         self.rgbs = torch.from_numpy(self.rgbs).float()
+        if(is_dynamic):
+            self.times = torch.from_numpy(self.times).float()
+
         if self.with_mask:
             self.masks = torch.from_numpy(self.masks).float()
             # self.masks = (self.masks >= 0.5).float()
@@ -176,6 +179,7 @@ class PatchNeRFDataset(BaseNeRFDataset):
                 raise RuntimeError
         else:
             self.rays = self.rays.permute([0, 3, 1, 2, 4]) # [N, ro+rd, H, W, 3(+id)]
+            self.times = self.times.permute([0, 3, 1, 2, 4]) # [N, ro+rd, H, W, 1]
 
         print(f"[Data info]: Random style patch is {self.rand_style}, mixtured styles is {self.mixed_styles}, single style path is {self.single_style_path}, \n \
                     sphere style is {self.sphere_style}, data mask is {self.with_mask}, image resolution is {self.img_h, self.img_w}, patch stride is {self.ps}")
@@ -241,14 +245,12 @@ class PatchNeRFDataset(BaseNeRFDataset):
         else:
             if self.with_mask:
                 if(self.is_dynamic):
-                    times = self.times[idx]
-                    return dict(rays = self.rays[i], target_s = self.rgbs[i], mask = self.masks[i], times=times) # [ro+rd, H, W, 3]
+                    return dict(rays = self.rays[i], target_s = self.rgbs[i], mask = self.masks[i], times = self.times[i]) # [ro+rd, H, W, 3]
                 else:
                     return dict(rays = self.rays[i], target_s = self.rgbs[i], mask = self.masks[i]) # [ro+rd, H, W, 3]
             else:
                 if(self.is_dynamic):
-                    times = self.times[idx]
-                    return dict(rays = self.rays[i], target_s = self.rgbs[i], times=times) # [ro+rd, H, W, 3]
+                    return dict(rays = self.rays[i], target_s = self.rgbs[i], times = self.times[i]) # [ro+rd, H, W, 3]
                 else:
                     return dict(rays = self.rays[i], target_s = self.rgbs[i]) # [ro+rd, H, W, 3]
 
@@ -259,7 +261,13 @@ class ExhibitNeRFDataset(BaseNeRFDataset):
         super().__init__(root_dir, split='exhibit', subsample=subsample, cam_id=False, rgb=False, is_dynamic=is_dynamic)
 
         self.rays = torch.from_numpy(self.rays).float()
+        # TODO: check this
+        if(is_dynamic):
+            self.times = torch.from_numpy(self.times).float()
+
         self.rays = self.rays.permute([0, 3, 1, 2, 4]) # [N, ro+rd, H, W, 3(+id)]
+        if(is_dynamic):
+            self.times = self.times.permute([0, 3, 1, 2, 4])
         self.img_h = self.rays.shape[2]
         self.img_w = self.rays.shape[3]
 

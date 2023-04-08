@@ -33,7 +33,17 @@ def eval_one_view(model, batch, near_far, device, stl_idx=None, bs=2, filter=Fal
         batch_rays = torch.chunk(batch_rays, bs, dim=0)
         batch_rays = torch.stack(batch_rays)
         batch_rays = batch_rays.permute(0, 2, 1, 3)
-        ret_dict = model(batch_rays, (near, far), stl_idx=stl_idx, test=True, **render_kwargs)
+
+        batch_times = None
+        if("times" in batch):
+            batch_times = batch['times'].cuda()
+            batch_times = batch_times.permute(1, 2, 0, 3)
+            batch_times = batch_times.reshape([batch_times.shape[0]*batch_times.shape[1], 2, 1])
+            batch_times = torch.chunk(batch_times, bs, dim=0)
+            batch_times = torch.stack(batch_times)
+            batch_times = batch_times.permute(0, 2, 1, 3)
+
+        ret_dict = model(batch_rays, (near, far), stl_idx=stl_idx, test=True, times=batch_times, **render_kwargs)
         for k, v in ret_dict.items():
             ret_dict[k] = v.cpu()
 
@@ -100,7 +110,7 @@ def linear_eval(model, dataset, save_dir=None,  expname=None, stl_idx=None, bs=1
     out.release()
 
 
-def evaluate(model_and_transformNet, dataset, device, save_dir=None, stl_idx=None, slice=-1, bs=1, **render_kwargs):
+def evaluate(model_and_transformNet, dataset, device, save_dir=None, stl_idx=None, slice=-1, bs=1, is_dynamic=False, **render_kwargs):
     '''Main function of  evaluation
     '''
     if isinstance(model_and_transformNet, list):
@@ -112,9 +122,7 @@ def evaluate(model_and_transformNet, dataset, device, save_dir=None, stl_idx=Non
     for i, batch in enumerate(dataset):
         # if i == 1:
         #     return
-
-        ret_dict, metric_dict = eval_one_view(model, batch, (near, far), stl_idx=stl_idx, device=device, bs=bs, **render_kwargs)
-        
+        ret_dict, metric_dict = eval_one_view(model, batch, (near, far), stl_idx=stl_idx, device=device, bs=bs, is_dynamic=is_dynamic, **render_kwargs)
         if ("mse" not in metric_dict.keys()):
             metric_dict["mse"] = torch.Tensor([0])
         if ("psnr" not in metric_dict.keys()):
@@ -141,7 +149,7 @@ def evaluate(model_and_transformNet, dataset, device, save_dir=None, stl_idx=Non
     return {'mse': total_mse.item(), 'psnr': total_psnr.item()}
 
 
-def render_video(model, dataset, device, save_dir, suffix='', fps=30, quality=8, expname='', stl_idx=None, bs=2,  **render_kwargs):
+def render_video(model, dataset, device, save_dir, suffix='', fps=30, quality=8, expname='', stl_idx=None, bs=2, is_dynamic=False, **render_kwargs):
     '''Render video
     '''
     near, far = dataset.near_far()
@@ -149,7 +157,8 @@ def render_video(model, dataset, device, save_dir, suffix='', fps=30, quality=8,
     for i, batch in enumerate(tqdm(dataset, desc='Rendering')):
         # if i >= 1:
         #     continue
-        ret_dict, metric_dict = eval_one_view(model, batch, (near, far), stl_idx=stl_idx, device=device, bs=bs, filter=False, **render_kwargs)
+
+        ret_dict, metric_dict = eval_one_view(model, batch, (near, far), stl_idx=stl_idx, device=device, bs=bs, filter=False, is_dynamic=is_dynamic, **render_kwargs)
         img, disp = ret_dict['rgb'].numpy(), ret_dict['disp'].numpy()
         rgbs.append(to8b(img))
         disps.append(to8b(disp / np.max(disp)))

@@ -144,10 +144,11 @@ def generate_dataset(args, output_path):
     print('Calculating train/valid/test rays ...')
     rays = torch.stack([get_persp_rays(H, W, K, torch.tensor(p)) for p in tqdm(poses[:,:3,:4])], 0) # [N, ro+rd, H, W, 3]
     if args.is_dynamic:
-        times = torch.ones_like(rays) * times[:, None, None, None, None]
-        times = times.numpy().astype(np.float32)
+        times = torch.ones(*rays.shape[:-1], 1) * times[:, None, None, None, None]
 
     rays = rays.permute([0, 2, 3, 1, 4]).numpy().astype(np.float32) # [N, H, W, ro+rd, 3]
+    if(args.is_dynamic):
+        times = times.permute([0, 2, 3, 1, 4]).numpy().astype(np.float32)
 
     if(args.is_dynamic):
         print('Done.', rays.shape, times.shape)
@@ -179,10 +180,11 @@ def generate_dataset(args, output_path):
     print('Calculating exhibition rays ...')
     rays_exhibit = torch.stack([get_persp_rays(H, W, K, torch.tensor(p)) for p in tqdm(render_poses[:,:3,:4])], 0) # [N, ro+rd, H, W, 3]
     if args.is_dynamic:
-        times_exhibit = torch.ones_like(rays_exhibit) * render_times[:, None, None, None, None]
-        times_exhibit = times_exhibit.numpy().astype(np.float32)
+        times_exhibit = torch.ones(*rays_exhibit.shape[:-1], 1) * render_times[:, None, None, None, None]
 
     rays_exhibit = rays_exhibit.permute([0, 2, 3, 1, 4]).numpy().astype(np.float32) # [N, H, W, ro+rd, 3]
+    if(args.is_dynamic):
+        times_exhibit = times_exhibit.permute([0, 2, 3, 1, 4]).numpy().astype(np.float32)
 
     if(args.is_dynamic):
         print('Done.', rays_exhibit.shape, times_exhibit.shape)

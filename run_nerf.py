@@ -62,11 +62,11 @@ def create_arg_parser():
     # Training options
     parser.add_argument("--netdepth", type=int, default=8,
                         help='layers in network')
-    parser.add_argument("--netwidth", type=int, default=256,
+    parser.add_argument("--netwidth", type=int, default=128,
                         help='channels per layer')
     parser.add_argument("--netdepth_fine", type=int, default=8,
                         help='layers in fine network')
-    parser.add_argument("--netwidth_fine", type=int, default=256,
+    parser.add_argument("--netwidth_fine", type=int, default=128,
                         help='channels per layer in fine network')
     parser.add_argument("--no_skip", action='store_true',
                         help='with or without concat within MLP')
@@ -426,13 +426,13 @@ def main(args):
             linear_eval(model, test_set, device=device, save_dir=save_dir,  expname=args.expname, stl_idx=torch.Tensor(args.stl_idx).cuda(), bs=args.batch_size)
         else:
             if args.eval_on_train:
-                evaluate(model, train_set, device=device, save_dir=save_dir, stl_idx=torch.Tensor(args.stl_idx).cuda(), bs=args.batch_size)
+                evaluate(model, train_set, device=device, save_dir=save_dir, stl_idx=torch.Tensor(args.stl_idx).cuda(), bs=args.batch_size, is_dynamic=args.is_dynamic)
             else:
-                evaluate(model, test_set, device=device, save_dir=save_dir, stl_idx=torch.Tensor(args.stl_idx).cuda(), bs=args.batch_size)
+                evaluate(model, test_set, device=device, save_dir=save_dir, stl_idx=torch.Tensor(args.stl_idx).cuda(), bs=args.batch_size, is_dynamic=args.is_dynamic)
         exit(0)
 
     if args.render_video:
-        render_video(model, exhibit_set, device=device, save_dir=save_dir, expname=args.expname, stl_idx=torch.Tensor(args.stl_idx).cuda(), bs=args.batch_size)
+        render_video(model, exhibit_set, device=device, save_dir=save_dir, expname=args.expname, stl_idx=torch.Tensor(args.stl_idx).cuda(), bs=args.batch_size, is_dynamic=args.is_dynamic)
         exit(0)
 
 if __name__=='__main__':

@@ -26,19 +26,19 @@ class StratifiedSampler(nn.Module):
         Args:
         rays_o: [N_rays, 3] origin points of rays
         rays_d: [N_rays, 3] directions of rays
-        
+
         bounds: [N_rays, 2] near far boundary
-        
+
         render_kwargs: other render parameters
 
         Return:
         pts: [N_rays, N_samples, 3] Point samples on every ray
         z_vals: [N_rays, N_samples] The z-values of rays
         """
-        
+
         perturb = render_kwargs['perturb'] if 'perturb' in render_kwargs else self.perturb
         N_samples = render_kwargs['N_samples'] if 'N_samples' in render_kwargs else self.N_samples
-        
+
         # Sample uniformly from near to far
         N_rays = rays_o.shape[0]
         near, far = bounds[..., 0, None], bounds[..., 1, None] # [N_rays, 1]
@@ -65,12 +65,12 @@ class StratifiedSampler(nn.Module):
                 t_rand = torch.Tensor(t_rand)
 
             z_vals = lower + (upper - lower) * t_rand
-        
+
         pts = rays_o[...,None,:] + rays_d[...,None,:] * z_vals[...,:,None] # [N_rays, N_samples, 3]
 
         # No extras
         return pts, z_vals, {}
-    
+
 # Importance Resampling Layer
 class ImportanceSampler(nn.Module):
 
@@ -84,7 +84,7 @@ class ImportanceSampler(nn.Module):
         self.perturb = perturb
         self.lindisp = lindisp
         self.pytest = pytest
-        
+
     # Hierarchical sampling (section 5.2)
     def sample_pdf(self, bins, weights, det=False):
         # Get pdf
@@ -136,19 +136,19 @@ class ImportanceSampler(nn.Module):
         Args:
         rays_o: [N_rays, 3] origin points of rays
         rays_d: [N_rays, 3] directions of rays
-        
+
         z_vals: [N_rays, N_samples, 2] z-values obtained from previous near-far sampler
         weights: [N_rays, N_samples, 1] sample weights of rays from previous near-far sampler
-        
+
         render_kwargs: other render parameters
 
         Return:
         pts: [N_rays, N_samples, 3] Point samples on every ray
         z_vals: [N_rays, N_samples] The z-values of rays
         """
-        
+
         perturb = render_kwargs['perturb'] if 'perturb' in render_kwargs else self.perturb
-        
+
         ret_extras = {}
 
         # Importance resampling
@@ -160,7 +160,7 @@ class ImportanceSampler(nn.Module):
 
         # Return new samples
         ret_extras['z_samples'] = z_samples
-        
+
         pts = rays_o[...,None,:] + rays_d[...,None,:] * z_vals[...,:,None] # [N_rays, N_samples + N_importance, 3]
 
         return pts, z_vals, ret_extras
@@ -174,7 +174,7 @@ class LayeredSampler(nn.Module):
         trainable: Whether planes can be trained by optimizer
         """
         super(LayeredSampler, self).__init__()
-        
+
         self.trainable = trainable
         self.perturb = perturb
         self.pytest = pytest
@@ -184,9 +184,9 @@ class LayeredSampler(nn.Module):
 #             self.ns = nn.Parameter(torch.Tensor(init_planes[:, :3])) # [N_planes, 3]
         else:
             self.register_buffer('Ds', torch.Tensor(init_planes[:, -1])) # [N_planes, 3]
-        
+
         self.register_buffer('ns', torch.Tensor(init_planes[:, :3])) # [N_planes, 3]
-            
+
         print("Create %s layered sampler" % ('trainable' if self.Ds.requires_grad else 'non-trainable'))
 
     # Return if sampler supports resampling
@@ -206,7 +206,7 @@ class LayeredSampler(nn.Module):
         z_vals: [N_rays, N_samples] The z-values of rays
         """
         perturb = render_kwargs['perturb'] if 'perturb' in render_kwargs else self.perturb
-        
+
         ## Compute z_vals
         a = self.Ds[None, :] - torch.sum((rays_o[:, None, :]) * self.ns[None, :, :], dim=-1) # dot(o_i, n_j) -> [N_rays, N_planes]
         b = torch.sum(rays_d[:, None, :] * self.ns[None, :, :], dim=-1)                      # dot(d_i, n_j) -> [N_rays, N_planes]

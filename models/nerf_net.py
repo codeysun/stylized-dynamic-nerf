@@ -96,7 +96,7 @@ class NeRFNet(nn.Module):
         if N_importance > 0:
             self.nerf_fine._set_tinuvox_grid_resolution(num_voxels)
 
-    def render_rays(self, rays_o, rays_d, near, far, viewdirs=None, stl_idx=None, raw_noise_std=0.,
+    def render_rays(self, rays_o, rays_d, near, far, viewdirs=None, stl_idx=None, times=None, raw_noise_std=0.,
         verbose=False, retraw = False, retpts=False, pytest=False, **kwargs):
         """Volumetric rendering.
         Args:
@@ -106,6 +106,7 @@ class NeRFNet(nn.Module):
           far: the maximal distance. [N_rays, 1]
           raw_noise_std: If True, add noise on raw output from nn
           verbose: bool. If True, print more debugging info.
+          times: float. The times for each frame for dynamic NeRF data [N_rays, 1]
         Returns:
           rgb: [N_rays, 3]. Estimated RGB color of a ray. Comes from fine model.
           raw: [N_rays, N_samples, C]. Raw predictions from model.
@@ -116,10 +117,13 @@ class NeRFNet(nn.Module):
           z_std: [N_rays]. Standard deviation of distances along ray for each sample.
         """
         bounds = torch.cat([near, far], -1) # [N_rays, 2]
-
+        # print(rays_o.shape)
+        # print(times.shape)
         # Primary sampling
         pts, z_vals, _ = self.point_sampler(rays_o, rays_d, bounds, **kwargs)  # [N_rays, N_samples, 3]
-        raw = self.nerf(pts, viewdirs)
+
+        # print(pts.shape)
+        raw = self.nerf(pts, viewdirs, times = times)
         ret = self.renderer(raw, z_vals, rays_d, raw_noise_std=raw_noise_std, pytest=pytest)
 
         # Buffer raw/pts
@@ -137,7 +141,7 @@ class NeRFNet(nn.Module):
             # resample
             pts, z_vals, sampler_extras = self.importance_sampler(rays_o, rays_d, z_vals, **ret, **kwargs) # [N_rays, N_samples + N_importance, 3]
             # obtain raw data
-            raw = self.nerf_fine(pts, viewdirs, stl_idx=stl_idx)
+            raw = self.nerf_fine(pts, viewdirs, stl_idx=stl_idx, times=times)
             # render raw data
             ret = self.renderer(raw, z_vals, rays_d, raw_noise_std=raw_noise_std, pytest=pytest)
 
@@ -156,7 +160,7 @@ class NeRFNet(nn.Module):
 
         return ret
 
-    def forward(self, ray_batch, times, bound_batch, stl_idx=None, test=False, **kwargs):
+    def forward(self, ray_batch, bound_batch, times=None, stl_idx=None, test=False, **kwargs):
         """Render rays
         Args:
           ray_batch: array of shape [2, batch_size, 3]. Ray origin and direction for
@@ -200,6 +204,10 @@ class NeRFNet(nn.Module):
         if isinstance(far, int) or isinstance(far, float):
             far = far * torch.ones_like(rays_d[...,:1], dtype=torch.float)
 
+        # Flatten time
+        if(times is not None):
+            times = torch.reshape(times[:, 0, ...], [-1,times.shape[-1]]).float()
+
         # Batchify rays
         all_ret = {}
         for i in range(0, rays_o.shape[0], self.chunk):
@@ -207,8 +215,9 @@ class NeRFNet(nn.Module):
             chunk_o, chunk_d = rays_o[i:end], rays_d[i:end]
             chunk_n, chunk_f = near[i:end], far[i:end]
             chunk_v = viewdirs[i:end] if self.use_viewdirs else None
+            chunk_t = times[i:end] if times is not None else None
             # Render function
-            ret = self.render_rays(chunk_o, chunk_d, chunk_n, chunk_f, viewdirs=chunk_v, stl_idx=stl_idx, **render_kwargs)
+            ret = self.render_rays(chunk_o, chunk_d, chunk_n, chunk_f, viewdirs=chunk_v, stl_idx=stl_idx, times = chunk_t, **render_kwargs)
             for k in ret:
                 if k not in all_ret:
                     all_ret[k] = []

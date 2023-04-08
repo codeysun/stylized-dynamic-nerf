@@ -288,7 +288,6 @@ def train_one_epoch_dynamic(model_and_VGG_and_TransformNet, optimizer, scheduler
         # dataset pre-processing
         batch_rays, target_s, style_s, mask, stl_idx, times = \
             batch_rays.cuda(), target_s.cuda(), style_s.cuda(), mask.cuda(), stl_idx.cuda(), times.cuda()
-
         # nerf forward
         if stl_idx[0].item() != 999:
             _stl_idx = F.one_hot(stl_idx, num_classes=stl_num).float()
@@ -296,9 +295,9 @@ def train_one_epoch_dynamic(model_and_VGG_and_TransformNet, optimizer, scheduler
             _stl_idx = None
         # _input: 2, 12, 12, 3
         _input = batch_rays.permute(0, 3, 1, 2, 4)
-        ret_dict = model(_input, times, (near, far), stl_idx=_stl_idx, test=False) # no extraction
+        ret_dict = model(_input, (near, far), times = times, stl_idx=_stl_idx, test=False) # no extraction
         if teacher is not None and (not args.self_distilled):
-            ret_dict_teach = teacher(_input, times, (near, far), test=False)
+            ret_dict_teach = teacher(_input, (near, far), times = times, test=False)
         optimizer.zero_grad()
 
         # print("Input:", _input.shape)
@@ -375,7 +374,10 @@ def train_one_epoch_dynamic(model_and_VGG_and_TransformNet, optimizer, scheduler
         for gm_y, gm_s in zip(gram_pred, gram_style):
             style_loss += img2mse(gm_y, gm_s)
         # image loss
+        # print(rgb_pred.shape)
+        # print(target_s.shape)
         img_loss = img2mse(rgb_pred, target_s)
+        # print("IMG_LOSS:", img_loss)
         psnr = mse2psnr(img_loss)
         view_id = list(idx.cpu().numpy())
         if 'rgb0' in ret_dict:
@@ -443,7 +445,6 @@ def train_one_epoch_dynamic(model_and_VGG_and_TransformNet, optimizer, scheduler
                 lemma = model.module.nerf_fine.mlp.lemma
             except:
                 gamma = lemma = torch.Tensor([0])
-
             print(f"[TRAIN] Iter: {global_step}/{max_steps}, Gamma:{round(gamma.item(), 4)}, Lemma:{round(lemma.item(), 4)}, Total-Loss: {round(loss.item(), 4)} \n \
                 Img-Loss: {round(img_loss.item(), 4)} Density-Loss: {round(d_loss.item(), 4)}\n \
                 Style-Loss:{round(style_loss.item(), 4)} Content-Loss: {round(content_loss.item(), 4)} \n \
