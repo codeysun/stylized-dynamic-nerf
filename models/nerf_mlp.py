@@ -194,7 +194,7 @@ class MLP(nn.Module):
 # New Input: (x, y, z) + time_information + voxel information concatenated, but can just compute most of this in here
 class NeRFMLP(nn.Module):
 
-    def __init__(self, input_dim=3, output_dim=4, net_depth=8, net_width=128, no_skip=False, act_fn="relu", skips=[4],
+    def __init__(self, input_dim=3, output_dim=4, net_depth=8, net_width=256, no_skip=False, act_fn="relu", skips=[4],
         viewdirs=True, use_embed=True, multires=10, multires_views=4, multires_times=8, multires_grid=2, netchunk=1024*64, fix_weight=False,
         zero_viewdir=False, embed_mlp=False, offset_mlp=False, embed_posembed=False, stl_num=None,
         is_dynamic=False, xyz_min=None, xyz_max=None, num_voxels=0, num_voxels_base=0, num_voxel_grids=0, deformation_depth=3):
@@ -370,6 +370,8 @@ class NeRFMLP(nn.Module):
             input_dirs = viewdirs[:,None].expand(inputs.shape)
             input_dirs_flat = torch.reshape(input_dirs, [-1, input_dirs.shape[-1]])
 
+        # print("inputs_flat: ", inputs_flat.shape)
+        # print("times_flat: ", times_flat.shape)
         # Batchify
         output_chunks = []
         for i in range(0, inputs_flat.shape[0], self.chunk):
@@ -384,7 +386,7 @@ class NeRFMLP(nn.Module):
                     _stl_idx = stl_idx.expand(end-i, stl_idx.shape[-1])
                     for ii, l in enumerate(self.embed_net):
                         if ii == 1:
-                            stl_embed = self.embed_net[ii](torch.cat([stl_embed, embedded, _stl_idx], -1))
+                            stl_embed = self.embed_net[ii](torch.cat([stl_embed, embedded_pts, _stl_idx], -1))
                             stl_embed = self.act_fn(stl_embed)
                         elif ii == 0:
                             stl_embed = self.embed_net[ii](_stl_idx)
@@ -407,6 +409,9 @@ class NeRFMLP(nn.Module):
                 # print("TIMES:", times_flat.shape)
                 time_embed = self.time_embedder(times_flat[i:end])
                 time_embed = self.timenet(time_embed)
+
+                # print("time_embed: ", time_embed.shape)
+                # print("embedded_pts: ", embedded_pts.shape)
 
                 # Compute Deformation + Voxel Grid Sample
                 ray_delta = self.deformationnet(embedded_pts, time_embed)

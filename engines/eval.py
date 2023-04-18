@@ -43,6 +43,7 @@ def eval_one_view(model, batch, near_far, device, stl_idx=None, bs=2, filter=Fal
             batch_times = torch.stack(batch_times)
             batch_times = batch_times.permute(0, 2, 1, 3)
 
+        # TODO: split into minibatches
         ret_dict = model(batch_rays, (near, far), stl_idx=stl_idx, test=True, times=batch_times, **render_kwargs)
         for k, v in ret_dict.items():
             ret_dict[k] = v.cpu()

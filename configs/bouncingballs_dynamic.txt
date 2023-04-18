@@ -1,6 +1,6 @@
-expname = blender_paper_lego_dynamic
+expname = blender_paper_bouncingballs_dynamic
 basedir = ./logs
-datadir = ./datasets/dnerf_synthetic/lego
+datadir = ./datasets/dnerf_synthetic/bouncingballs
 dataset_type = blender
 
 no_batching = True

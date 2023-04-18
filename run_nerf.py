@@ -62,11 +62,11 @@ def create_arg_parser():
     # Training options
     parser.add_argument("--netdepth", type=int, default=8,
                         help='layers in network')
-    parser.add_argument("--netwidth", type=int, default=128,
+    parser.add_argument("--netwidth", type=int, default=256,
                         help='channels per layer')
     parser.add_argument("--netdepth_fine", type=int, default=8,
                         help='layers in fine network')
-    parser.add_argument("--netwidth_fine", type=int, default=128,
+    parser.add_argument("--netwidth_fine", type=int, default=256,
                         help='channels per layer in fine network')
     parser.add_argument("--no_skip", action='store_true',
                         help='with or without concat within MLP')
@@ -237,7 +237,7 @@ def create_arg_parser():
                     help='Number of voxels to store.  Only for Dynamic NeRF Datasets')
     parser.add_argument('--num_voxels_base', type=int, default=100**3,
                         help='Rescales voxel sizes.  Only for Dynamic NeRF Datasets')
-    parser.add_argument('--num_voxel_grids', type=int, default=4,
+    parser.add_argument('--num_voxel_grids', type=int, default=6,
                         help='Number of Voxel Grids to create and update.  Only for Dynamic NeRF Datasets')
     parser.add_argument('--pg_scale', type=int, action="store", default=[], nargs = "*",
                         help='Progress Scaling for TiNuVox to reduce train time.  Only for Dynamic NeRF Datasets')

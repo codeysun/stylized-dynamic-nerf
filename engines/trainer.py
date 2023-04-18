@@ -295,10 +295,13 @@ def train_one_epoch_dynamic(model_and_VGG_and_TransformNet, optimizer, scheduler
             _stl_idx = None
         # _input: 2, 12, 12, 3
         _input = batch_rays.permute(0, 3, 1, 2, 4)
-        ret_dict = model(_input, (near, far), times = times, stl_idx=_stl_idx, test=False) # no extraction
+        _times = times.permute(0, 3, 1, 2, 4)
+        # TODO: split into minibatches
+        ret_dict = model(_input, (near, far), times = _times, stl_idx=_stl_idx, test=False) # no extraction
         if teacher is not None and (not args.self_distilled):
-            ret_dict_teach = teacher(_input, (near, far), times = times, test=False)
+            ret_dict_teach = teacher(_input, (near, far), times = _times, test=False)
         optimizer.zero_grad()
+        # TODO: stack minibatches
 
         # print("Input:", _input.shape)
         # for key, val in ret_dict.items():
@@ -334,6 +337,13 @@ def train_one_epoch_dynamic(model_and_VGG_and_TransformNet, optimizer, scheduler
         # cv2.imwrite("logs/vis_/_style_s.png", _style_s.astype(np.uint8))
         # cv2.imwrite("logs/vis_/_mask.png", _mask.astype(np.uint8))
         # st()
+
+        # print("device: ", rgb_pred0.get_device())
+        # print("_input: ", _input.shape)
+        # print("rgb_pred0: ", rgb_pred0.shape)
+        # print("rgb_pred: ", rgb_pred.shape)
+        # print("target_s: ", target_s.shape)
+        # print("style_s: ", style_s.shape)
 
         rgb_pred0, rgb_pred, target_s, style_s, mask = \
             rgb_pred0.permute(0, 3, 1, 2), rgb_pred.permute(0, 3, 1, 2), target_s.permute(0, 3, 1, 2), style_s.permute(0, 3, 1, 2), mask.permute(0, 3, 1, 2)
@@ -436,7 +446,8 @@ def train_one_epoch_dynamic(model_and_VGG_and_TransformNet, optimizer, scheduler
         ############################
 
         # logging errors
-        if (global_step % i_print == 0 and global_step > 0) or global_step == 200001:
+        # if (global_step % i_print == 0 and global_step > 0) or global_step == 200001:
+        if (global_step % i_print == 0) or global_step == 200001:
             dt = time.time() - time0
             time0 = time.time()
             avg_time = dt / min(global_step - start_step, i_print)
@@ -467,11 +478,12 @@ def train_one_epoch_dynamic(model_and_VGG_and_TransformNet, optimizer, scheduler
             save_checkpoint(path, global_step, model, optimizer)
 
         # test images
-        if (global_step % i_testset == 0 and global_step > 0) or global_step == 200001:
+        # if (global_step % i_testset == 0 and global_step > 0) or global_step == 200001:
+        if (global_step % i_testset == 0) or global_step == 200001:
             print("Evaluating test images ...")
             save_dir = os.path.join(run_dir, 'testset_{:08d}'.format(global_step))
             os.makedirs(save_dir, exist_ok=True)
-            metric_dict = evaluate([model, transformer], test_set, device=device, save_dir=save_dir, fast_mode=args.fast_mode, stl_idx=_stl_idx, bs=args.batch_size)
+            metric_dict = evaluate([model, transformer], test_set, device=device, save_dir=save_dir, fast_mode=args.fast_mode, stl_idx=_stl_idx, bs=args.batch_size, is_dynamic=args.is_dynamic)
 
             # log testing metric
             summary_writer.add_scalar('test/mse', metric_dict['mse'], global_step)
@@ -479,7 +491,7 @@ def train_one_epoch_dynamic(model_and_VGG_and_TransformNet, optimizer, scheduler
 
         # exhibition video
         if global_step % i_video==0 and global_step > 0 and exhibit_set is not None:
-            render_video(model, exhibit_set, device=device, save_dir=run_dir, suffix=str(global_step), expname=args.expname, fast_mode=args.fast_mode, stl_idx=_stl_idx, bs=args.batch_size)
+            render_video(model, exhibit_set, device=device, save_dir=run_dir, suffix=str(global_step), expname=args.expname, fast_mode=args.fast_mode, stl_idx=_stl_idx, bs=args.batch_size, is_dynamic=args.is_dynamic)
 
         # End training if finished
         if global_step >= max_steps:

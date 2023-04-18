@@ -117,8 +117,8 @@ class NeRFNet(nn.Module):
           z_std: [N_rays]. Standard deviation of distances along ray for each sample.
         """
         bounds = torch.cat([near, far], -1) # [N_rays, 2]
-        # print(rays_o.shape)
-        # print(times.shape)
+        # print("rays_o: ", rays_o.shape)
+        # print("times: ", times.shape)
         # Primary sampling
         pts, z_vals, _ = self.point_sampler(rays_o, rays_d, bounds, **kwargs)  # [N_rays, N_samples, 3]
 
@@ -183,9 +183,14 @@ class NeRFNet(nn.Module):
             render_kwargs.update(kwargs)
 
         # Disentangle ray batch
-        rays_o, rays_d = ray_batch.squeeze(0) #[2,1,3] -> [1,3] [1,3]
+        # TODO: this line is not compatible with batch size > 1
+        rays_o, rays_d = ray_batch.squeeze(0) #[2,1,3] -> [1,3] [1,3] squeeze out batch dim
+        # rays_o, rays_d = ray_batch #[2,1,3] -> [1,3] [1,3] don't squeeze out batch dim
         assert rays_o.shape == rays_d.shape
 
+        # print("ray_batch: ", ray_batch.shape)
+        # print("rays_o: ", rays_o.shape)
+        # print("rays_d: ", rays_d.shape)
         # Flatten ray batch
         old_shape = rays_d.shape # [..., 3(+id)]
         rays_o = torch.reshape(rays_o, [-1,rays_o.shape[-1]]).float()

@@ -179,7 +179,8 @@ class PatchNeRFDataset(BaseNeRFDataset):
                 raise RuntimeError
         else:
             self.rays = self.rays.permute([0, 3, 1, 2, 4]) # [N, ro+rd, H, W, 3(+id)]
-            self.times = self.times.permute([0, 3, 1, 2, 4]) # [N, ro+rd, H, W, 1]
+            if (is_dynamic):
+                self.times = self.times.permute([0, 3, 1, 2, 4]) # [N, ro+rd, H, W, 1]
 
         print(f"[Data info]: Random style patch is {self.rand_style}, mixtured styles is {self.mixed_styles}, single style path is {self.single_style_path}, \n \
                     sphere style is {self.sphere_style}, data mask is {self.with_mask}, image resolution is {self.img_h, self.img_w}, patch stride is {self.ps}")
@@ -238,7 +239,8 @@ class PatchNeRFDataset(BaseNeRFDataset):
                 if break_flag:
                     break
             if(self.is_dynamic):
-                times = self.times[idx]
+                time_sample = self.times[idx]
+                times = time_sample[h_idx:h_idx+self.crop_size:self.ps, w_idx:w_idx+self.crop_size:self.ps, :]
                 return dict(rays = rays, target_s = rgbs, style=stls, masks=masks, idx=idx, stl_idx=stl_idx, times=times) # [3,]
             else:
                 return dict(rays = rays, target_s = rgbs, style=stls, masks=masks, idx=idx, stl_idx=stl_idx) # [3,]

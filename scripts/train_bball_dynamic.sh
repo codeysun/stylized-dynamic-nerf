@@ -1,10 +1,10 @@
 #! /in/bash
 
-SCENE=lego
-CONFIG_NAME=lego_dynamic
-BATCH_SIZE=1
+SCENE=bouncingballs
+CONFIG_NAME=bouncingballs_dynamic
+BATCH_SIZE=2
 # sentitive to gpu memory, lower it if gpu mem is small
-PATCH_SIZE=40
+PATCH_SIZE=32
 # related to receptive field
 PATCH_STRIDE=2
 RGB_W=1
@@ -36,7 +36,6 @@ CUDA_VISIBLE_DEVICES=1 python run_nerf.py \
  --stl_idx 0 \
  --is_dynamic \
  --with_mask \
- --style_path datasets/single_styles/the_scream.jpg \
-#  --ckpt_path ckpts/${CONFIG_NAME}_00075000.ckpt 2>&1 | tee -a logs/${EXPNAME}/${EXPNAME}.txt
+ --style_path datasets/single_styles/starry.jpg \
 #  --eval
 #  --with_teach  \
