@@ -364,7 +364,7 @@ class NeRFMLP(nn.Module):
         # Flatten
         inputs_flat = torch.reshape(inputs, [-1, inputs.shape[-1]]) # [N_pts, C]
         if(times is not None):
-            times_flat = torch.reshape(times.repeat(1, inputs.shape[1], 1), [-1, 1])
+            times_flat = torch.reshape(times.repeat(inputs.shape[1], 1), [-1, 1])
 
         if viewdirs is not None:
             input_dirs = viewdirs[:,None].expand(inputs.shape)

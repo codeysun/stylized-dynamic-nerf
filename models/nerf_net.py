@@ -160,7 +160,8 @@ class NeRFNet(nn.Module):
 
         return ret
 
-    def forward(self, ray_batch, bound_batch, times=None, stl_idx=None, test=False, **kwargs):
+    # def forward(self, ray_batch, bound_batch, times=None, stl_idx=None, test=False, **kwargs):
+    def forward(self, rays_o, rays_d, times, bound_batch, stl_idx=None, test=False, **kwargs):
         """Render rays
         Args:
           ray_batch: array of shape [2, batch_size, 3]. Ray origin and direction for
@@ -182,19 +183,25 @@ class NeRFNet(nn.Module):
             render_kwargs = self.render_kwargs_test.copy()
             render_kwargs.update(kwargs)
 
-        # Disentangle ray batch
-        # TODO: this line is not compatible with batch size > 1
-        rays_o, rays_d = ray_batch.squeeze(0) #[2,1,3] -> [1,3] [1,3] squeeze out batch dim
-        # rays_o, rays_d = ray_batch #[2,1,3] -> [1,3] [1,3] don't squeeze out batch dim
-        assert rays_o.shape == rays_d.shape
+        # # Disentangle ray batch
+        rays_o, rays_d = rays_o.squeeze(0), rays_d.squeeze(0)
+        times = times.squeeze(0)
+        # # TODO: this line is not compatible with batch size > 1
+        # rays_o, rays_d = ray_batch.squeeze(0) #[2,1,3] -> [1,3] [1,3] squeeze out batch dim
+        # # rays_o, rays_d = ray_batch #[2,1,3] -> [1,3] [1,3] don't squeeze out batch dim
+        # assert rays_o.shape == rays_d.shape
 
-        # print("ray_batch: ", ray_batch.shape)
-        # print("rays_o: ", rays_o.shape)
-        # print("rays_d: ", rays_d.shape)
-        # Flatten ray batch
-        old_shape = rays_d.shape # [..., 3(+id)]
-        rays_o = torch.reshape(rays_o, [-1,rays_o.shape[-1]]).float()
-        rays_d = torch.reshape(rays_d, [-1,rays_d.shape[-1]]).float()
+        # # print("ray_batch: ", ray_batch.shape)
+        # # print("rays_o: ", rays_o.shape)
+        # # print("rays_d: ", rays_d.shape)
+        # # Flatten ray batch
+        # old_shape = rays_d.shape # [..., 3(+id)]
+        # rays_o = torch.reshape(rays_o, [-1,rays_o.shape[-1]]).float()
+        # rays_d = torch.reshape(rays_d, [-1,rays_d.shape[-1]]).float()
+
+        # # Flatten time
+        # if(times is not None):
+        #     times = torch.reshape(times[:, 0, ...], [-1,times.shape[-1]]).float()
 
         # Provide ray directions as input
         if self.use_viewdirs:
@@ -208,10 +215,6 @@ class NeRFNet(nn.Module):
             near = near * torch.ones_like(rays_d[...,:1], dtype=torch.float)
         if isinstance(far, int) or isinstance(far, float):
             far = far * torch.ones_like(rays_d[...,:1], dtype=torch.float)
-
-        # Flatten time
-        if(times is not None):
-            times = torch.reshape(times[:, 0, ...], [-1,times.shape[-1]]).float()
 
         # Batchify rays
         all_ret = {}
@@ -230,9 +233,9 @@ class NeRFNet(nn.Module):
         all_ret = {k : torch.cat(all_ret[k], 0) for k in all_ret}
 
         # Unflatten
-        for k in all_ret:
-            k_sh = [1] + list(old_shape[:-1]) + list(all_ret[k].shape[1:])
-            all_ret[k] = torch.reshape(all_ret[k], k_sh) # [input_rays_shape, per_ray_output_shape]
+        # for k in all_ret:
+        #     k_sh = [1] + list(old_shape[:-1]) + list(all_ret[k].shape[1:])
+        #     all_ret[k] = torch.reshape(all_ret[k], k_sh) # [input_rays_shape, per_ray_output_shape]
 
         return all_ret
 

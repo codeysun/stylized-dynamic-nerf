@@ -1,0 +1,13 @@
+pytorch==1.7.0
+torchvision==0.8.0
+tensorboard==2.7.0
+opencv-python
+imageio
+imageio-ffmpeg
+configargparse
+scipy
+matplotlib
+tqdm
+mrc
+lpips
+torch_scatter

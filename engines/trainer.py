@@ -296,12 +296,29 @@ def train_one_epoch_dynamic(model_and_VGG_and_TransformNet, optimizer, scheduler
         # _input: 2, 12, 12, 3
         _input = batch_rays.permute(0, 3, 1, 2, 4)
         _times = times.permute(0, 3, 1, 2, 4)
+
         # TODO: split into minibatches
-        ret_dict = model(_input, (near, far), times = _times, stl_idx=_stl_idx, test=False) # no extraction
+        # Disentangle ray batch
+        rays_o, rays_d = _input.squeeze(0) #[2,1,3] -> [1,3] [1,3]
+        assert rays_o.shape == rays_d.shape
+        # Flatten ray batch
+        old_shape = rays_d.shape # [..., 3(+id)]
+        rays_o = torch.reshape(rays_o, [-1,rays_o.shape[-1]]).float()
+        rays_d = torch.reshape(rays_d, [-1,rays_d.shape[-1]]).float()
+        # Flatten time
+        if(_times is not None):
+            _times = torch.reshape(_times[:, 0, ...], [-1,_times.shape[-1]]).float()
+        # Batch inputs
+        batch_rays_o = torch.stack(torch.split(rays_o, len(rays_o)//2))
+        batch_rays_d = torch.stack(torch.split(rays_d, len(rays_o)//2))
+        batch_times = torch.stack(torch.split(_times, len(rays_o)//2))
+
+        # ret_dict = model(_input, (near, far), times = _times, stl_idx=_stl_idx, test=False) # no extraction
+        ret_dict = model(batch_rays_o, batch_rays_d, batch_times, (near, far), stl_idx=_stl_idx, test=False) # no extraction
         if teacher is not None and (not args.self_distilled):
-            ret_dict_teach = teacher(_input, (near, far), times = _times, test=False)
+            # ret_dict_teach = teacher(_input, (near, far), times = _times, test=False)
+            ret_dict_teach = teacher(batch_rays_o, batch_rays_d, batch_times, (near, far), test=False)
         optimizer.zero_grad()
-        # TODO: stack minibatches
 
         # print("Input:", _input.shape)
         # for key, val in ret_dict.items():
@@ -322,6 +339,15 @@ def train_one_epoch_dynamic(model_and_VGG_and_TransformNet, optimizer, scheduler
         # depth0: torch.Size([1, 36, 36, 1]) - Estimated distance to object.   Coarse model output, used as "backup"
         # raw0: torch.Size([1, 36, 36, 64, 4]) - Raw outputs.  Coarse model output, used as "backup"
 
+
+        # TODO: unbind minibatches
+        # Unflatten
+        for k in ret_dict:
+            k_sh = [1] + list(old_shape[:-1]) + list(ret_dict[k].shape[1:])
+            ret_dict[k] = torch.reshape(ret_dict[k], k_sh) # [input_rays_shape, per_ray_output_shape]
+        for k in ret_dict_teach:
+            k_sh = [1] + list(old_shape[:-1]) + list(ret_dict_teach[k].shape[1:])
+            ret_dict_teach[k] = torch.reshape(ret_dict_teach[k], k_sh) # [input_rays_shape, per_ray_output_shape]
 
         # pre-process for VGG
         rgb_pred0 = ret_dict['rgb0']
@@ -446,8 +472,7 @@ def train_one_epoch_dynamic(model_and_VGG_and_TransformNet, optimizer, scheduler
         ############################
 
         # logging errors
-        # if (global_step % i_print == 0 and global_step > 0) or global_step == 200001:
-        if (global_step % i_print == 0) or global_step == 200001:
+        if (global_step % i_print == 0 and global_step > 0) or global_step == 200001:
             dt = time.time() - time0
             time0 = time.time()
             avg_time = dt / min(global_step - start_step, i_print)
@@ -478,8 +503,7 @@ def train_one_epoch_dynamic(model_and_VGG_and_TransformNet, optimizer, scheduler
             save_checkpoint(path, global_step, model, optimizer)
 
         # test images
-        # if (global_step % i_testset == 0 and global_step > 0) or global_step == 200001:
-        if (global_step % i_testset == 0) or global_step == 200001:
+        if (global_step % i_testset == 0 and global_step > 0) or global_step == 200001 or global_step == 0:
             print("Evaluating test images ...")
             save_dir = os.path.join(run_dir, 'testset_{:08d}'.format(global_step))
             os.makedirs(save_dir, exist_ok=True)
