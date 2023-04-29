@@ -309,9 +309,15 @@ def train_one_epoch_dynamic(model_and_VGG_and_TransformNet, optimizer, scheduler
         if(_times is not None):
             _times = torch.reshape(_times[:, 0, ...], [-1,_times.shape[-1]]).float()
         # Batch inputs
-        batch_rays_o = torch.stack(torch.split(rays_o, len(rays_o)//2))
-        batch_rays_d = torch.stack(torch.split(rays_d, len(rays_o)//2))
-        batch_times = torch.stack(torch.split(_times, len(rays_o)//2))
+        if args.num_devices > 1:
+            batch_rays_o = torch.stack(torch.split(rays_o, len(rays_o)//args.num_devices))
+            batch_rays_d = torch.stack(torch.split(rays_d, len(rays_o)//args.num_devices))
+            batch_times = torch.stack(torch.split(_times, len(rays_o)//args.num_devices))
+        else:
+            batch_rays_o = torch.unsqueeze(rays_o, 0)
+            batch_rays_d = torch.unsqueeze(rays_d, 0)
+            batch_times = torch.unsqueeze(_times, 0)
+
 
         # ret_dict = model(_input, (near, far), times = _times, stl_idx=_stl_idx, test=False) # no extraction
         ret_dict = model(batch_rays_o, batch_rays_d, batch_times, (near, far), stl_idx=_stl_idx, test=False) # no extraction
@@ -345,9 +351,10 @@ def train_one_epoch_dynamic(model_and_VGG_and_TransformNet, optimizer, scheduler
         for k in ret_dict:
             k_sh = [1] + list(old_shape[:-1]) + list(ret_dict[k].shape[1:])
             ret_dict[k] = torch.reshape(ret_dict[k], k_sh) # [input_rays_shape, per_ray_output_shape]
-        for k in ret_dict_teach:
-            k_sh = [1] + list(old_shape[:-1]) + list(ret_dict_teach[k].shape[1:])
-            ret_dict_teach[k] = torch.reshape(ret_dict_teach[k], k_sh) # [input_rays_shape, per_ray_output_shape]
+        if teacher is not None and (not args.self_distilled):
+            for k in ret_dict_teach:
+                k_sh = [1] + list(old_shape[:-1]) + list(ret_dict_teach[k].shape[1:])
+                ret_dict_teach[k] = torch.reshape(ret_dict_teach[k], k_sh) # [input_rays_shape, per_ray_output_shape]
 
         # pre-process for VGG
         rgb_pred0 = ret_dict['rgb0']

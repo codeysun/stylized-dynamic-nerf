@@ -76,6 +76,8 @@ def create_arg_parser():
                         help='max iteration number (number of iteration to finish training)')
     parser.add_argument("--batch_size", "--N_rand", type=int, default=32*32*4,
                         help='batch size (number of random rays per gradient step)')
+    parser.add_argument("--num_devices", type=int, default=2,
+                        help='number of GPUs (for batching)')
     parser.add_argument("--lrate", type=float, default=5e-4,
                         help='learning rate')
     parser.add_argument("--ray_chunk", type=int, default=1024*32,

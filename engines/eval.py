@@ -49,9 +49,12 @@ def eval_one_view(model, batch, near_far, device, stl_idx=None, bs=2, filter=Fal
         assert rays_o.shape == rays_d.shape
         batch_times, _ = batch_times.squeeze(0)
         # Batch inputs
-        batch_rays_o = torch.stack(torch.split(rays_o, len(rays_o)//2))
-        batch_rays_d = torch.stack(torch.split(rays_d, len(rays_o)//2))
-        batch_times = torch.stack(torch.split(batch_times, len(rays_o)//2))
+        # batch_rays_o = torch.stack(torch.split(rays_o, len(rays_o)//2))
+        # batch_rays_d = torch.stack(torch.split(rays_d, len(rays_o)//2))
+        # batch_times = torch.stack(torch.split(batch_times, len(rays_o)//2))
+        batch_rays_o = torch.unsqueeze(rays_o, 0)
+        batch_rays_d = torch.unsqueeze(rays_d, 0)
+        batch_times = torch.unsqueeze(batch_times, 0)
 
         ret_dict = model(batch_rays_o, batch_rays_d, batch_times, (near, far), stl_idx=stl_idx, test=True, **render_kwargs)
 

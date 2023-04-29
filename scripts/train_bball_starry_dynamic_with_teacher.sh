@@ -15,7 +15,9 @@ EXPNAME=${CONFIG_NAME}_dynamic_P${PATCH_SIZE}_PS${PATCH_STRIDE}_RGB${RGB_W}_S${S
 mkdir -p logs/$CONFIG_NAME
 mkdir -p logs/$CONFIG_NAME/checkpoints
 
+# Number of GPUs available in the machine
 CUDA_VISIBLE_DEVICES=1,2 python run_nerf.py \
+ --num_devices 2 \
  --batch_size ${BATCH_SIZE} \
  --config configs/${CONFIG_NAME}.txt  \
  --data_path datasets/dnerf_synthetic/${SCENE}   \
