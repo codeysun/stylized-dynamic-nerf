@@ -1,7 +1,8 @@
 
+datasets/dnerf_synthetic/*
 datasets/nerf_synthetic/*
 datasets/nerf_llff_data/*
-datasets/*
+# datasets/*
 out/*
 # Byte-compiled / optimized / DLL files
 __pycache__/
