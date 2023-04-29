@@ -4,11 +4,8 @@
 <!-- [[Paper]](https://arxiv.org/abs/2204.01943) [[Website]](https://zhiwenfan.github.io/INS/) -->
 
 <div>
-<img src="https://raw.githubusercontent.com/zhiwenfan/INS/main/INS/ours_lego_inter.gif" height="140"/>
-<img src="https://raw.githubusercontent.com/zhiwenfan/INS/main/INS/ours_lego_the_scream.gif" height="140"/>
-<img src="https://raw.githubusercontent.com/zhiwenfan/INS/main/INS/ours_mic_starrynight.gif" height="140"/>
-<img src="https://raw.githubusercontent.com/zhiwenfan/INS/main/INS/ours_room.gif" height="140"/>
-<img src="https://raw.githubusercontent.com/zhiwenfan/INS/main/INS/ours_horns_gris1.gif" height="140"/>
+<img src="https://raw.githubusercontent.com/rchhong/INS-Dynamic/blob/master/gifs/bouncingballs_starry.gif"/>
+<img src="https://raw.githubusercontent.com/rchhong/INS-Dynamic/blob/master/gifs/lego_scream.gif"/>
 </div>
 
 Stylized Dynamic NeRFs provide a framework for stylizing dynamic NeRFs. Dynamic NeRFs are created using the [TiNeuVox](https://github.com/hustvl/TiNeuVox) model. Stylization is then performed using the [Implicit Neural Stylization](https://github.com/VITA-Group/INS) pipeline.
@@ -35,7 +32,7 @@ lpips
 
 ## Data Preparation
 
-To run our code on NeRF dataset, users need first download data from official [dropbox](https://drive.google.com/drive/folders/128yBriW1IG_3NJ5Rp7APSTZsJqdJdfc1). Then extract package files according to the following directory structure:
+To run our code on NeRF dataset, users need first download data from the [DNeRF dropbox](https://drive.google.com/drive/folders/128yBriW1IG_3NJ5Rp7APSTZsJqdJdfc1). Then extract package files according to the following directory structure:
 
 ```
 ├── configs
