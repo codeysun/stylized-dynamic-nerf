@@ -26,6 +26,8 @@ matplotlib
 tqdm
 mrc
 lpips
+torch_scatter
+tkinter
 ```
 
 ## Data Preparation
