@@ -53,9 +53,25 @@ python gen_dataset.py --config <config_file>
 
 where `<config_file>` is the path to the configuration file of your experiment instance. Examples and pre-defined configuration files are provided in `configs` folder. Note that dynamic configs end in `_dynamic.txt`.
 
+To evaluate/train using our checkpoints, download checkpoints from [here](https://utexas.box.com/s/8rp69ikhc68v2vu1tslqidcnjfq60nok) and move them to the `ckpts` directory.
+
+```
+├── ckpts
+|   └── *.ckpt
+│   └── ...
+```
+
+## Testing
+
+After generating datasets and downloading checkpoints, one can evaluate the stylized NeRF using:
+
+```
+bash script/infer_dynamic.sh
+```
+
 ## Training
 
-After generating datasets, one can train the base dynamic NeRF using:
+One can train the base dynamic NeRF using:
 
 ```
 bash scripts/train_dynamic.sh
@@ -68,7 +84,3 @@ bash scripts/train_dynamic_with_teacher.sh
 ```
 
 Ensure that `ckpt_path` points to the correct checkpoint of the teacher model.
-
-## Testing
-
-To evaluate models, enable the `eval` flag on one of the above scripts.
