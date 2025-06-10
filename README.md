@@ -3,10 +3,12 @@
 <!-- [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT) -->
 <!-- [[Paper]](https://arxiv.org/abs/2204.01943) [[Website]](https://zhiwenfan.github.io/INS/) -->
 
-![](https://github.com/rchhong/INS-Dynamic/blob/master/gifs/bouncingballs_starry.gif)
-![](https://github.com/rchhong/INS-Dynamic/blob/master/gifs/lego_scream.gif)
+![](https://github.com/codeysun/stylized-dynamic-nerf/blob/master/gifs/nerf.gif)
 
 Stylized Dynamic NeRFs provide a framework for stylizing dynamic NeRFs. Dynamic NeRFs are created using the [TiNeuVox](https://github.com/hustvl/TiNeuVox) model. Stylization is then performed using the [Implicit Neural Stylization](https://github.com/VITA-Group/INS) pipeline.
+
+![](https://github.com/rchhong/INS-Dynamic/blob/master/gifs/bouncingballs_starry.gif)
+![](https://github.com/rchhong/INS-Dynamic/blob/master/gifs/lego_scream.gif)
 
 ## Installation
 
